@@ -705,7 +705,7 @@ fn ui(f: &mut Frame, app: &App) {
                 if app.is_disconnect_operation {
                     (
                         format!(
-                            "Successfully disconnected from {}!\n\nPress Enter to continue or Esc to quit",
+                            "Successfully disconnected from {}!\n\nPress Enter to continue or q/Esc to quit",
                             network_name
                         ),
                         CatppuccinColors::PEACH,
@@ -714,7 +714,7 @@ fn ui(f: &mut Frame, app: &App) {
                 } else {
                     (
                         format!(
-                            "Successfully connected to {}!\n\nPress Enter to continue or Esc to quit",
+                            "Successfully connected to {}!\n\nPress Enter to continue or q/Esc to quit",
                             network_name
                         ),
                         CatppuccinColors::GREEN,
@@ -727,7 +727,7 @@ fn ui(f: &mut Frame, app: &App) {
                 if app.is_disconnect_operation {
                     (
                         format!(
-                            "Failed to disconnect from network.\n\nError: {}\n\nPress Enter to try again or Esc to quit",
+                            "Failed to disconnect from network.\n\nError: {}\n\nPress Enter to try again or q/Esc to quit",
                             error_msg
                         ),
                         CatppuccinColors::RED,
@@ -736,7 +736,7 @@ fn ui(f: &mut Frame, app: &App) {
                 } else {
                     (
                         format!(
-                            "Failed to connect to network.\n\nError: {}\n\nPress Enter to try again or Esc to quit",
+                            "Failed to connect to network.\n\nError: {}\n\nPress Enter to try again or q/Esc to quit",
                             error_msg
                         ),
                         CatppuccinColors::RED,
@@ -810,11 +810,11 @@ async fn run_app<B: Backend>(
 
             if app.networks.is_empty() {
                 app.status_message =
-                    "No networks found. Press 'r' to rescan or Esc to quit"
+                    "No networks found. Press 'r' to rescan or q/Esc to quit"
                         .to_string();
             } else {
                 app.status_message =
-                    "Use ↑/↓ or j/k to navigate, Enter to select, Esc to quit"
+                    "Use ↑/↓ or j/k to navigate, Enter/c to connect, d to disconnect, r to rescan, q/Esc to quit"
                         .to_string();
                 app.list_state.select(Some(0));
             }
@@ -903,7 +903,17 @@ async fn run_app<B: Backend>(
                     KeyCode::Char('q') | KeyCode::Esc => app.quit(),
                     KeyCode::Char('j') | KeyCode::Down => app.next(),
                     KeyCode::Char('k') | KeyCode::Up => app.previous(),
-                    KeyCode::Enter => app.select_network(),
+                    KeyCode::Enter | KeyCode::Char('c') => app.select_network(),
+                    KeyCode::Char('d') => {
+                        if let Some(network) = app.networks.get(app.selected_index).cloned() {
+                            if network.connected {
+                                app.selected_network = Some(network.clone());
+                                app.is_disconnect_operation = true;
+                                app.state = AppState::Disconnecting;
+                                app.status_message = format!("Disconnecting from {}...", network.ssid);
+                            }
+                        }
+                    },
                     KeyCode::Char('r') => {
                         app.state = AppState::Scanning;
                         app.status_message =
@@ -929,13 +939,14 @@ async fn run_app<B: Backend>(
                     // Handled above in the disconnecting loop
                 }
                 AppState::ConnectionResult => match key.code {
-                    KeyCode::Esc => app.quit(),
+                    KeyCode::Char('q') | KeyCode::Esc => app.quit(),
                     KeyCode::Enter => {
-                        if app.connection_success {
-                            break; // Exit the app on successful connection
-                        } else {
-                            app.back_to_network_list();
-                        }
+                        // Always return to network list after connection result
+                        app.back_to_network_list();
+                        // Rescan to update connection status
+                        app.state = AppState::Scanning;
+                        app.status_message = "Scanning for networks...".to_string();
+                        app.networks.clear();
                     }
                     _ => {}
                 },
