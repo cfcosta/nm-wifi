@@ -96,6 +96,7 @@ struct App {
     should_quit: bool,
     connection_success: bool,
     connection_error: Option<String>,
+    is_disconnect_operation: bool,
 }
 
 impl App {
@@ -114,6 +115,7 @@ impl App {
             should_quit: false,
             connection_success: false,
             connection_error: None,
+            is_disconnect_operation: false,
         }
     }
 
@@ -156,16 +158,20 @@ impl App {
             self.selected_network = Some(network.clone());
             if network.connected {
                 // If already connected, disconnect
+                self.is_disconnect_operation = true;
                 self.state = AppState::Disconnecting;
                 self.status_message =
                     format!("Disconnecting from {}...", network.ssid);
-            } else if network.secured {
-                self.state = AppState::PasswordInput;
-                self.password_input.clear();
             } else {
-                self.state = AppState::Connecting;
-                self.status_message =
-                    format!("Connecting to {}...", network.ssid);
+                self.is_disconnect_operation = false;
+                if network.secured {
+                    self.state = AppState::PasswordInput;
+                    self.password_input.clear();
+                } else {
+                    self.state = AppState::Connecting;
+                    self.status_message =
+                        format!("Connecting to {}...", network.ssid);
+                }
             }
         }
     }
@@ -195,6 +201,7 @@ impl App {
         self.connection_error = None;
         self.selected_network = None;
         self.password_input.clear();
+        self.is_disconnect_operation = false;
     }
 }
 
@@ -542,8 +549,15 @@ fn ui(f: &mut Frame, app: &App) {
             let popup_area = centered_rect(50, 20, f.area());
             f.render_widget(Clear, popup_area);
 
+            let network_name = app
+                .selected_network
+                .as_ref()
+                .map(|n| n.ssid.as_str())
+                .unwrap_or("Unknown");
+
             let password_input = Paragraph::new(format!(
-                "Password: {}",
+                "Enter password for {}:\n\nPassword: {}\n\nPress Enter to connect or Esc to cancel",
+                network_name,
                 "*".repeat(app.password_input.len())
             ))
             .block(
@@ -555,7 +569,8 @@ fn ui(f: &mut Frame, app: &App) {
                 Style::default()
                     .fg(CatppuccinColors::YELLOW)
                     .bg(CatppuccinColors::BASE),
-            );
+            )
+            .alignment(Alignment::Center);
 
             f.render_widget(password_input, popup_area);
         }
@@ -687,25 +702,47 @@ fn ui(f: &mut Frame, app: &App) {
                     .as_ref()
                     .map(|n| n.ssid.as_str())
                     .unwrap_or("Unknown");
-                (
-                    format!(
-                        "Successfully connected to {}!\n\nPress Enter to continue or Esc to quit",
-                        network_name
-                    ),
-                    CatppuccinColors::GREEN,
-                    "Connection Successful",
-                )
+                if app.is_disconnect_operation {
+                    (
+                        format!(
+                            "Successfully disconnected from {}!\n\nPress Enter to continue or Esc to quit",
+                            network_name
+                        ),
+                        CatppuccinColors::PEACH,
+                        "Disconnection Successful",
+                    )
+                } else {
+                    (
+                        format!(
+                            "Successfully connected to {}!\n\nPress Enter to continue or Esc to quit",
+                            network_name
+                        ),
+                        CatppuccinColors::GREEN,
+                        "Connection Successful",
+                    )
+                }
             } else {
                 let error_msg =
                     app.connection_error.as_deref().unwrap_or("Unknown error");
-                (
-                    format!(
-                        "Failed to connect to network.\n\nError: {}\n\nPress Enter to try again or Esc to quit",
-                        error_msg
-                    ),
-                    CatppuccinColors::RED,
-                    "Connection Failed",
-                )
+                if app.is_disconnect_operation {
+                    (
+                        format!(
+                            "Failed to disconnect from network.\n\nError: {}\n\nPress Enter to try again or Esc to quit",
+                            error_msg
+                        ),
+                        CatppuccinColors::RED,
+                        "Disconnection Failed",
+                    )
+                } else {
+                    (
+                        format!(
+                            "Failed to connect to network.\n\nError: {}\n\nPress Enter to try again or Esc to quit",
+                            error_msg
+                        ),
+                        CatppuccinColors::RED,
+                        "Connection Failed",
+                    )
+                }
             };
 
             let result_modal = Paragraph::new(message)
