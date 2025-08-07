@@ -156,8 +156,6 @@ impl App {
     fn select_network(&mut self) {
         let network = self.networks.get(self.selected_index).cloned();
 
-        self.is_disconnect_operation = self.state == AppState::Disconnecting;
-
         match &network {
             Some(network) if network.connected => {
                 self.state = AppState::Disconnecting;
@@ -175,6 +173,8 @@ impl App {
             }
             None => {}
         }
+
+        self.is_disconnect_operation = self.state == AppState::Disconnecting;
 
         if network.is_some() {
             self.selected_network = network;
@@ -204,9 +204,29 @@ impl App {
         self.state = AppState::NetworkList;
         self.connection_success = false;
         self.connection_error = None;
-        self.selected_network = None;
         self.password_input.clear();
         self.is_disconnect_operation = false;
+        // Keep selected_network to preserve selection after rescan
+    }
+
+    fn update_selection_after_rescan(&mut self) {
+        if let Some(selected_network) = &self.selected_network {
+            // Find the network by SSID in the new list
+            if let Some(new_index) = self
+                .networks
+                .iter()
+                .position(|n| n.ssid == selected_network.ssid)
+            {
+                self.selected_index = new_index;
+                self.list_state.select(Some(new_index));
+            } else {
+                // Network not found, select first network
+                self.selected_index = 0;
+                self.list_state.select(Some(0));
+            }
+        }
+        // Clear selected_network after updating selection
+        self.selected_network = None;
     }
 }
 
@@ -707,6 +727,7 @@ fn ui(f: &mut Frame, app: &App) {
                     .as_ref()
                     .map(|n| n.ssid.as_str())
                     .unwrap_or("Unknown");
+
                 if app.is_disconnect_operation {
                     (
                         format!(
@@ -821,7 +842,13 @@ async fn run_app<B: Backend>(
                 app.status_message =
                     "Use ↑/↓ or j/k to navigate, Enter/c to connect, d to disconnect, r to rescan, q/Esc to quit"
                         .to_string();
-                app.list_state.select(Some(0));
+
+                // Update selection to preserve the previously selected network
+                if app.selected_network.is_some() {
+                    app.update_selection_after_rescan();
+                } else {
+                    app.list_state.select(Some(0));
+                }
             }
 
             app.state = AppState::NetworkList;
