@@ -80,22 +80,22 @@
             };
           };
         };
-
+      in
+      {
         packages.default = rustPlatform.buildRustPackage {
           name = "nm-wifi";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
+          buildInputs = [ pkgs.dbus.dev ];
+          nativeBuildInputs = [ pkgs.pkg-config ];
         };
-      in
-      {
-        inherit packages;
 
         formatter = formatter;
 
         checks = { inherit pre-commit-check; };
 
         devShells.default = mkShell {
-          name = "nm";
+          name = "nm-wifi";
 
           buildInputs = with pkgs; [
             rust
