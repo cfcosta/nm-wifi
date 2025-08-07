@@ -30,6 +30,38 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
+
+// Catppuccin Mocha color palette
+struct CatppuccinColors;
+
+#[allow(dead_code)]
+impl CatppuccinColors {
+    const BASE: Color = Color::Rgb(30, 30, 46); // #1e1e2e
+    const MANTLE: Color = Color::Rgb(24, 24, 37); // #181825
+    const SURFACE0: Color = Color::Rgb(49, 50, 68); // #313244
+    const SURFACE1: Color = Color::Rgb(69, 71, 90); // #45475a
+    const SURFACE2: Color = Color::Rgb(88, 91, 112); // #585b70
+    const TEXT: Color = Color::Rgb(205, 214, 244); // #cdd6f4
+    const SUBTEXT1: Color = Color::Rgb(186, 194, 222); // #bac2de
+    const SUBTEXT0: Color = Color::Rgb(166, 173, 200); // #a6adc8
+    const OVERLAY2: Color = Color::Rgb(147, 153, 178); // #9399b2
+    const OVERLAY1: Color = Color::Rgb(127, 132, 156); // #7f849c
+    const OVERLAY0: Color = Color::Rgb(108, 112, 134); // #6c7086
+    const LAVENDER: Color = Color::Rgb(180, 190, 254); // #b4befe
+    const BLUE: Color = Color::Rgb(137, 180, 250); // #89b4fa
+    const SAPPHIRE: Color = Color::Rgb(116, 199, 236); // #74c7ec
+    const SKY: Color = Color::Rgb(137, 220, 235); // #89dceb
+    const TEAL: Color = Color::Rgb(148, 226, 213); // #94e2d5
+    const GREEN: Color = Color::Rgb(166, 227, 161); // #a6e3a1
+    const YELLOW: Color = Color::Rgb(249, 226, 175); // #f9e2af
+    const PEACH: Color = Color::Rgb(250, 179, 135); // #fab387
+    const MAROON: Color = Color::Rgb(235, 160, 172); // #eba0ac
+    const RED: Color = Color::Rgb(243, 139, 168); // #f38ba8
+    const MAUVE: Color = Color::Rgb(203, 166, 247); // #cba6f7
+    const PINK: Color = Color::Rgb(245, 194, 231); // #f5c2e7
+    const FLAMINGO: Color = Color::Rgb(242, 205, 205); // #f2cdcd
+    const ROSEWATER: Color = Color::Rgb(245, 224, 220); // #f5e0dc
+}
 use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
@@ -276,11 +308,18 @@ async fn connect_to_network(
     }
 }
 
+fn create_signal_graph(strength: u8) -> String {
+    let bars = (strength as f32 / 100.0 * 20.0) as usize;
+    let filled = "█".repeat(bars);
+    let empty = "░".repeat(20 - bars);
+    format!("{}{}", filled, empty)
+}
+
 fn ui(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(1)
-        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
+        .margin(0)
+        .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
         .split(f.area());
 
     match app.state {
@@ -292,7 +331,11 @@ fn ui(f: &mut Frame, app: &App) {
                 "Scanning for WiFi networks...\n\nPlease wait...",
             )
             .block(Block::default().borders(Borders::ALL).title("Scanning"))
-            .style(Style::default().fg(Color::Cyan))
+            .style(
+                Style::default()
+                    .fg(CatppuccinColors::BLUE)
+                    .bg(CatppuccinColors::BASE),
+            )
             .alignment(Alignment::Center);
 
             f.render_widget(scanning_modal, popup_area);
@@ -302,29 +345,44 @@ fn ui(f: &mut Frame, app: &App) {
                 .networks
                 .iter()
                 .map(|network| {
-                    let signal_bars = "█"
-                        .repeat((network.signal_strength / 25).max(1) as usize);
+                    let signal_graph =
+                        create_signal_graph(network.signal_strength);
                     let security_icon =
                         if network.secured { "🔒" } else { "  " };
+                    let signal_color = match network.signal_strength {
+                        80..=100 => CatppuccinColors::GREEN,
+                        60..=79 => CatppuccinColors::YELLOW,
+                        40..=59 => CatppuccinColors::PEACH,
+                        _ => CatppuccinColors::RED,
+                    };
 
-                    ListItem::new(Line::from(vec![Span::styled(
-                        format!(
-                            "{} {} {}",
-                            security_icon, network.ssid, signal_bars
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("{} ", security_icon),
+                            Style::default().fg(CatppuccinColors::MAUVE),
                         ),
-                        Style::default(),
-                    )]))
+                        Span::styled(
+                            format!("{:<30}", network.ssid),
+                            Style::default().fg(CatppuccinColors::TEXT),
+                        ),
+                        Span::styled(
+                            signal_graph,
+                            Style::default().fg(signal_color),
+                        ),
+                    ]))
                 })
                 .collect();
 
             let list = List::new(items)
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
-                        .title("WiFi Networks"),
+                        .style(Style::default().bg(CatppuccinColors::BASE)),
                 )
                 .highlight_style(
-                    Style::default().add_modifier(Modifier::REVERSED),
+                    Style::default()
+                        .bg(CatppuccinColors::SURFACE0)
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
                 )
                 .highlight_symbol("► ");
 
@@ -339,29 +397,44 @@ fn ui(f: &mut Frame, app: &App) {
                 .networks
                 .iter()
                 .map(|network| {
-                    let signal_bars = "█"
-                        .repeat((network.signal_strength / 25).max(1) as usize);
+                    let signal_graph =
+                        create_signal_graph(network.signal_strength);
                     let security_icon =
                         if network.secured { "🔒" } else { "  " };
+                    let signal_color = match network.signal_strength {
+                        80..=100 => CatppuccinColors::GREEN,
+                        60..=79 => CatppuccinColors::YELLOW,
+                        40..=59 => CatppuccinColors::PEACH,
+                        _ => CatppuccinColors::RED,
+                    };
 
-                    ListItem::new(Line::from(vec![Span::styled(
-                        format!(
-                            "{} {} {}",
-                            security_icon, network.ssid, signal_bars
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("{} ", security_icon),
+                            Style::default().fg(CatppuccinColors::MAUVE),
                         ),
-                        Style::default(),
-                    )]))
+                        Span::styled(
+                            format!("{:<30}", network.ssid),
+                            Style::default().fg(CatppuccinColors::TEXT),
+                        ),
+                        Span::styled(
+                            signal_graph,
+                            Style::default().fg(signal_color),
+                        ),
+                    ]))
                 })
                 .collect();
 
             let list = List::new(items)
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
-                        .title("WiFi Networks"),
+                        .style(Style::default().bg(CatppuccinColors::BASE)),
                 )
                 .highlight_style(
-                    Style::default().add_modifier(Modifier::REVERSED),
+                    Style::default()
+                        .bg(CatppuccinColors::SURFACE0)
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
                 )
                 .highlight_symbol("► ");
 
@@ -383,7 +456,11 @@ fn ui(f: &mut Frame, app: &App) {
                     .borders(Borders::ALL)
                     .title("Enter Password"),
             )
-            .style(Style::default().fg(Color::Yellow));
+            .style(
+                Style::default()
+                    .fg(CatppuccinColors::YELLOW)
+                    .bg(CatppuccinColors::BASE),
+            );
 
             f.render_widget(password_input, popup_area);
         }
@@ -392,29 +469,44 @@ fn ui(f: &mut Frame, app: &App) {
                 .networks
                 .iter()
                 .map(|network| {
-                    let signal_bars = "█"
-                        .repeat((network.signal_strength / 25).max(1) as usize);
+                    let signal_graph =
+                        create_signal_graph(network.signal_strength);
                     let security_icon =
                         if network.secured { "🔒" } else { "  " };
+                    let signal_color = match network.signal_strength {
+                        80..=100 => CatppuccinColors::GREEN,
+                        60..=79 => CatppuccinColors::YELLOW,
+                        40..=59 => CatppuccinColors::PEACH,
+                        _ => CatppuccinColors::RED,
+                    };
 
-                    ListItem::new(Line::from(vec![Span::styled(
-                        format!(
-                            "{} {} {}",
-                            security_icon, network.ssid, signal_bars
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("{} ", security_icon),
+                            Style::default().fg(CatppuccinColors::MAUVE),
                         ),
-                        Style::default(),
-                    )]))
+                        Span::styled(
+                            format!("{:<30}", network.ssid),
+                            Style::default().fg(CatppuccinColors::TEXT),
+                        ),
+                        Span::styled(
+                            signal_graph,
+                            Style::default().fg(signal_color),
+                        ),
+                    ]))
                 })
                 .collect();
 
             let list = List::new(items)
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
-                        .title("WiFi Networks"),
+                        .style(Style::default().bg(CatppuccinColors::BASE)),
                 )
                 .highlight_style(
-                    Style::default().add_modifier(Modifier::REVERSED),
+                    Style::default()
+                        .bg(CatppuccinColors::SURFACE0)
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
                 )
                 .highlight_symbol("► ");
 
@@ -438,7 +530,11 @@ fn ui(f: &mut Frame, app: &App) {
                 network_name
             ))
             .block(Block::default().borders(Borders::ALL).title("Connecting"))
-            .style(Style::default().fg(Color::Yellow))
+            .style(
+                Style::default()
+                    .fg(CatppuccinColors::YELLOW)
+                    .bg(CatppuccinColors::BASE),
+            )
             .alignment(Alignment::Center);
 
             f.render_widget(connecting_modal, popup_area);
@@ -448,29 +544,44 @@ fn ui(f: &mut Frame, app: &App) {
                 .networks
                 .iter()
                 .map(|network| {
-                    let signal_bars = "█"
-                        .repeat((network.signal_strength / 25).max(1) as usize);
+                    let signal_graph =
+                        create_signal_graph(network.signal_strength);
                     let security_icon =
                         if network.secured { "🔒" } else { "  " };
+                    let signal_color = match network.signal_strength {
+                        80..=100 => CatppuccinColors::GREEN,
+                        60..=79 => CatppuccinColors::YELLOW,
+                        40..=59 => CatppuccinColors::PEACH,
+                        _ => CatppuccinColors::RED,
+                    };
 
-                    ListItem::new(Line::from(vec![Span::styled(
-                        format!(
-                            "{} {} {}",
-                            security_icon, network.ssid, signal_bars
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("{} ", security_icon),
+                            Style::default().fg(CatppuccinColors::MAUVE),
                         ),
-                        Style::default(),
-                    )]))
+                        Span::styled(
+                            format!("{:<30}", network.ssid),
+                            Style::default().fg(CatppuccinColors::TEXT),
+                        ),
+                        Span::styled(
+                            signal_graph,
+                            Style::default().fg(signal_color),
+                        ),
+                    ]))
                 })
                 .collect();
 
             let list = List::new(items)
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
-                        .title("WiFi Networks"),
+                        .style(Style::default().bg(CatppuccinColors::BASE)),
                 )
                 .highlight_style(
-                    Style::default().add_modifier(Modifier::REVERSED),
+                    Style::default()
+                        .bg(CatppuccinColors::SURFACE0)
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
                 )
                 .highlight_symbol("► ");
 
@@ -494,7 +605,7 @@ fn ui(f: &mut Frame, app: &App) {
                         "Successfully connected to {}!\n\nPress Enter to continue or Esc to quit",
                         network_name
                     ),
-                    Color::Green,
+                    CatppuccinColors::GREEN,
                     "Connection Successful",
                 )
             } else {
@@ -505,14 +616,14 @@ fn ui(f: &mut Frame, app: &App) {
                         "Failed to connect to network.\n\nError: {}\n\nPress Enter to try again or Esc to quit",
                         error_msg
                     ),
-                    Color::Red,
+                    CatppuccinColors::RED,
                     "Connection Failed",
                 )
             };
 
             let result_modal = Paragraph::new(message)
                 .block(Block::default().borders(Borders::ALL).title(title))
-                .style(Style::default().fg(color))
+                .style(Style::default().fg(color).bg(CatppuccinColors::BASE))
                 .alignment(Alignment::Center);
 
             f.render_widget(result_modal, popup_area);
@@ -520,7 +631,11 @@ fn ui(f: &mut Frame, app: &App) {
     }
 
     let status = Paragraph::new(app.status_message.as_str())
-        .block(Block::default().borders(Borders::ALL).title("Status"))
+        .style(
+            Style::default()
+                .fg(CatppuccinColors::SUBTEXT1)
+                .bg(CatppuccinColors::BASE),
+        )
         .alignment(Alignment::Center);
     f.render_widget(status, chunks[1]);
 }
