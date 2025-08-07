@@ -154,25 +154,30 @@ impl App {
     }
 
     fn select_network(&mut self) {
-        if let Some(network) = self.networks.get(self.selected_index).cloned() {
-            self.selected_network = Some(network.clone());
-            if network.connected {
-                // If already connected, disconnect
-                self.is_disconnect_operation = true;
+        let network = self.networks.get(self.selected_index).cloned();
+
+        self.is_disconnect_operation = self.state == AppState::Disconnecting;
+
+        match &network {
+            Some(network) if network.connected => {
                 self.state = AppState::Disconnecting;
                 self.status_message =
                     format!("Disconnecting from {}...", network.ssid);
-            } else {
-                self.is_disconnect_operation = false;
-                if network.secured {
-                    self.state = AppState::PasswordInput;
-                    self.password_input.clear();
-                } else {
-                    self.state = AppState::Connecting;
-                    self.status_message =
-                        format!("Connecting to {}...", network.ssid);
-                }
             }
+            Some(network) if network.secured => {
+                self.state = AppState::PasswordInput;
+                self.password_input.clear();
+            }
+            Some(network) => {
+                self.state = AppState::Connecting;
+                self.status_message =
+                    format!("Connecting to {}...", network.ssid);
+            }
+            None => {}
+        }
+
+        if network.is_some() {
+            self.selected_network = network;
         }
     }
 
@@ -905,15 +910,22 @@ async fn run_app<B: Backend>(
                     KeyCode::Char('k') | KeyCode::Up => app.previous(),
                     KeyCode::Enter | KeyCode::Char('c') => app.select_network(),
                     KeyCode::Char('d') => {
-                        if let Some(network) = app.networks.get(app.selected_index).cloned() {
-                            if network.connected {
-                                app.selected_network = Some(network.clone());
-                                app.is_disconnect_operation = true;
-                                app.state = AppState::Disconnecting;
-                                app.status_message = format!("Disconnecting from {}...", network.ssid);
-                            }
+                        if let Some(network) = app
+                            .networks
+                            .get(app.selected_index)
+                            .filter(|n| n.connected)
+                            .cloned()
+                        {
+                            app.is_disconnect_operation = true;
+                            app.state = AppState::Disconnecting;
+                            app.status_message = format!(
+                                "Disconnecting from {}...",
+                                network.ssid
+                            );
+
+                            app.selected_network = Some(network);
                         }
-                    },
+                    }
                     KeyCode::Char('r') => {
                         app.state = AppState::Scanning;
                         app.status_message =
@@ -945,7 +957,8 @@ async fn run_app<B: Backend>(
                         app.back_to_network_list();
                         // Rescan to update connection status
                         app.state = AppState::Scanning;
-                        app.status_message = "Scanning for networks...".to_string();
+                        app.status_message =
+                            "Scanning for networks...".to_string();
                         app.networks.clear();
                     }
                     _ => {}
