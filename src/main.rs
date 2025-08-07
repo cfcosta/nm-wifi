@@ -320,23 +320,93 @@ async fn connect_to_network(
 ) -> Result<(), Box<dyn Error>> {
     use std::process::Command;
 
-    // Use nmcli command line tool for connection
-    let mut cmd = Command::new("nmcli");
-    cmd.args(["device", "wifi", "connect", &network.ssid]);
-
-    if let Some(pwd) = password {
-        cmd.args(["password", pwd]);
+    if network.secured && password.is_none() {
+        return Err("Password required for secured network".into());
     }
 
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
+    // Use nmcli command line tool for connection
+    let mut cmd = Command::new("nmcli");
 
-    if output.status.success() {
-        Ok(())
+    if network.secured {
+        // For secured networks, use the connection add approach
+        cmd.args([
+            "connection",
+            "add",
+            "type",
+            "wifi",
+            "con-name",
+            &network.ssid,
+            "ssid",
+            &network.ssid,
+            "wifi-sec.key-mgmt",
+            "wpa-psk",
+            "wifi-sec.psk",
+            password.unwrap(),
+        ]);
+
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Failed to execute nmcli add: {}", e))?;
+
+        if !output.status.success() {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            // If connection already exists, try to modify it
+            if error_msg.contains("already exists") {
+                let mut modify_cmd = Command::new("nmcli");
+                modify_cmd.args([
+                    "connection",
+                    "modify",
+                    &network.ssid,
+                    "wifi-sec.psk",
+                    password.unwrap(),
+                ]);
+
+                let modify_output = modify_cmd.output().map_err(|e| {
+                    format!("Failed to execute nmcli modify: {}", e)
+                })?;
+
+                if !modify_output.status.success() {
+                    let modify_error =
+                        String::from_utf8_lossy(&modify_output.stderr);
+                    return Err(format!(
+                        "nmcli modify failed: {}",
+                        modify_error
+                    )
+                    .into());
+                }
+            } else {
+                return Err(format!("nmcli add failed: {}", error_msg).into());
+            }
+        }
+
+        // Now activate the connection
+        let mut activate_cmd = Command::new("nmcli");
+        activate_cmd.args(["connection", "up", &network.ssid]);
+
+        let activate_output = activate_cmd
+            .output()
+            .map_err(|e| format!("Failed to execute nmcli up: {}", e))?;
+
+        if activate_output.status.success() {
+            Ok(())
+        } else {
+            let error_msg = String::from_utf8_lossy(&activate_output.stderr);
+            Err(format!("nmcli activation failed: {}", error_msg).into())
+        }
     } else {
-        let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("nmcli failed: {}", error_msg).into())
+        // For open networks, use the simple connect command
+        cmd.args(["device", "wifi", "connect", &network.ssid]);
+
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            Err(format!("nmcli failed: {}", error_msg).into())
+        }
     }
 }
 
