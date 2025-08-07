@@ -62,6 +62,8 @@ impl CatppuccinColors {
     const FLAMINGO: Color = Color::Rgb(242, 205, 205); // #f2cdcd
     const ROSEWATER: Color = Color::Rgb(245, 224, 220); // #f5e0dc
 }
+use std::process::Command;
+
 use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
@@ -70,6 +72,7 @@ struct WifiNetwork {
     signal_strength: u8,
     secured: bool,
     frequency: u32,
+    connected: bool,
 }
 
 #[derive(PartialEq)]
@@ -78,6 +81,7 @@ enum AppState {
     NetworkList,
     PasswordInput,
     Connecting,
+    Disconnecting,
     ConnectionResult,
 }
 
@@ -150,7 +154,12 @@ impl App {
     fn select_network(&mut self) {
         if let Some(network) = self.networks.get(self.selected_index).cloned() {
             self.selected_network = Some(network.clone());
-            if network.secured {
+            if network.connected {
+                // If already connected, disconnect
+                self.state = AppState::Disconnecting;
+                self.status_message =
+                    format!("Disconnecting from {}...", network.ssid);
+            } else if network.secured {
                 self.state = AppState::PasswordInput;
                 self.password_input.clear();
             } else {
@@ -189,10 +198,30 @@ impl App {
     }
 }
 
+async fn get_connected_ssid() -> Option<String> {
+    let output = Command::new("nmcli")
+        .args(["-t", "-f", "ACTIVE,SSID", "dev", "wifi"])
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+            if line.starts_with("yes:") {
+                return Some(line[4..].to_string());
+            }
+        }
+    }
+    None
+}
+
 async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system()
         .map_err(|_| "Failed to connect to D-Bus".to_string())?;
     let nm = NetworkManager::new(&dbus);
+
+    // Get currently connected SSID
+    let connected_ssid = get_connected_ssid().await;
 
     let devices = nm
         .get_devices()
@@ -236,11 +265,14 @@ async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
                         .frequency()
                         .map_err(|_| "Failed to get frequency".to_string())?;
 
+                    let connected = connected_ssid.as_ref() == Some(&ssid);
+
                     let network = WifiNetwork {
                         ssid,
                         signal_strength,
                         secured,
                         frequency,
+                        connected,
                     };
                     networks.push(network);
                 }
@@ -265,8 +297,16 @@ async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
 
             let mut deduplicated_networks: Vec<WifiNetwork> =
                 unique_networks.into_values().collect();
-            deduplicated_networks
-                .sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+
+            // Sort by connection status first, then by signal strength
+            deduplicated_networks.sort_by(|a, b| {
+                match (a.connected, b.connected) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => b.signal_strength.cmp(&a.signal_strength),
+                }
+            });
+
             return Ok(deduplicated_networks);
         }
     }
@@ -282,10 +322,10 @@ async fn connect_to_network(
 
     // Use nmcli command line tool for connection
     let mut cmd = Command::new("nmcli");
-    cmd.args(&["device", "wifi", "connect", &network.ssid]);
+    cmd.args(["device", "wifi", "connect", &network.ssid]);
 
     if let Some(pwd) = password {
-        cmd.args(&["password", pwd]);
+        cmd.args(["password", pwd]);
     }
 
     let output = cmd
@@ -300,11 +340,62 @@ async fn connect_to_network(
     }
 }
 
+async fn disconnect_from_network(
+    network: &WifiNetwork,
+) -> Result<(), Box<dyn Error>> {
+    use std::process::Command;
+
+    let output = Command::new("nmcli")
+        .args(["connection", "down", &network.ssid])
+        .output()
+        .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("nmcli disconnect failed: {}", error_msg).into())
+    }
+}
+
 fn create_signal_graph(strength: u8) -> String {
     let bars = (strength as f32 / 100.0 * 20.0) as usize;
     let filled = "█".repeat(bars);
     let empty = "░".repeat(20 - bars);
     format!("{}{}", filled, empty)
+}
+
+fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
+    let signal_graph = create_signal_graph(network.signal_strength);
+    let security_icon = if network.secured { "🔒" } else { "  " };
+    let connection_icon = if network.connected { "🔗" } else { "  " };
+    let signal_color = match network.signal_strength {
+        80..=100 => CatppuccinColors::GREEN,
+        60..=79 => CatppuccinColors::YELLOW,
+        40..=59 => CatppuccinColors::PEACH,
+        _ => CatppuccinColors::RED,
+    };
+    let ssid_color = if network.connected {
+        CatppuccinColors::GREEN
+    } else {
+        CatppuccinColors::TEXT
+    };
+
+    ListItem::new(Line::from(vec![
+        Span::styled(
+            connection_icon.to_string(),
+            Style::default().fg(CatppuccinColors::GREEN),
+        ),
+        Span::styled(
+            format!("{} ", security_icon),
+            Style::default().fg(CatppuccinColors::MAUVE),
+        ),
+        Span::styled(
+            format!("{:<28}", network.ssid),
+            Style::default().fg(ssid_color),
+        ),
+        Span::styled(signal_graph, Style::default().fg(signal_color)),
+    ]))
 }
 
 fn ui(f: &mut Frame, app: &App) {
@@ -333,37 +424,8 @@ fn ui(f: &mut Frame, app: &App) {
             f.render_widget(scanning_modal, popup_area);
         }
         AppState::NetworkList => {
-            let items: Vec<ListItem> = app
-                .networks
-                .iter()
-                .map(|network| {
-                    let signal_graph =
-                        create_signal_graph(network.signal_strength);
-                    let security_icon =
-                        if network.secured { "🔒" } else { "  " };
-                    let signal_color = match network.signal_strength {
-                        80..=100 => CatppuccinColors::GREEN,
-                        60..=79 => CatppuccinColors::YELLOW,
-                        40..=59 => CatppuccinColors::PEACH,
-                        _ => CatppuccinColors::RED,
-                    };
-
-                    ListItem::new(Line::from(vec![
-                        Span::styled(
-                            format!("{} ", security_icon),
-                            Style::default().fg(CatppuccinColors::MAUVE),
-                        ),
-                        Span::styled(
-                            format!("{:<30}", network.ssid),
-                            Style::default().fg(CatppuccinColors::TEXT),
-                        ),
-                        Span::styled(
-                            signal_graph,
-                            Style::default().fg(signal_color),
-                        ),
-                    ]))
-                })
-                .collect();
+            let items: Vec<ListItem> =
+                app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
                 .block(
@@ -385,37 +447,8 @@ fn ui(f: &mut Frame, app: &App) {
             );
         }
         AppState::PasswordInput => {
-            let items: Vec<ListItem> = app
-                .networks
-                .iter()
-                .map(|network| {
-                    let signal_graph =
-                        create_signal_graph(network.signal_strength);
-                    let security_icon =
-                        if network.secured { "🔒" } else { "  " };
-                    let signal_color = match network.signal_strength {
-                        80..=100 => CatppuccinColors::GREEN,
-                        60..=79 => CatppuccinColors::YELLOW,
-                        40..=59 => CatppuccinColors::PEACH,
-                        _ => CatppuccinColors::RED,
-                    };
-
-                    ListItem::new(Line::from(vec![
-                        Span::styled(
-                            format!("{} ", security_icon),
-                            Style::default().fg(CatppuccinColors::MAUVE),
-                        ),
-                        Span::styled(
-                            format!("{:<30}", network.ssid),
-                            Style::default().fg(CatppuccinColors::TEXT),
-                        ),
-                        Span::styled(
-                            signal_graph,
-                            Style::default().fg(signal_color),
-                        ),
-                    ]))
-                })
-                .collect();
+            let items: Vec<ListItem> =
+                app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
                 .block(
@@ -457,37 +490,8 @@ fn ui(f: &mut Frame, app: &App) {
             f.render_widget(password_input, popup_area);
         }
         AppState::Connecting => {
-            let items: Vec<ListItem> = app
-                .networks
-                .iter()
-                .map(|network| {
-                    let signal_graph =
-                        create_signal_graph(network.signal_strength);
-                    let security_icon =
-                        if network.secured { "🔒" } else { "  " };
-                    let signal_color = match network.signal_strength {
-                        80..=100 => CatppuccinColors::GREEN,
-                        60..=79 => CatppuccinColors::YELLOW,
-                        40..=59 => CatppuccinColors::PEACH,
-                        _ => CatppuccinColors::RED,
-                    };
-
-                    ListItem::new(Line::from(vec![
-                        Span::styled(
-                            format!("{} ", security_icon),
-                            Style::default().fg(CatppuccinColors::MAUVE),
-                        ),
-                        Span::styled(
-                            format!("{:<30}", network.ssid),
-                            Style::default().fg(CatppuccinColors::TEXT),
-                        ),
-                        Span::styled(
-                            signal_graph,
-                            Style::default().fg(signal_color),
-                        ),
-                    ]))
-                })
-                .collect();
+            let items: Vec<ListItem> =
+                app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
                 .block(
@@ -531,38 +535,59 @@ fn ui(f: &mut Frame, app: &App) {
 
             f.render_widget(connecting_modal, popup_area);
         }
-        AppState::ConnectionResult => {
-            let items: Vec<ListItem> = app
-                .networks
-                .iter()
-                .map(|network| {
-                    let signal_graph =
-                        create_signal_graph(network.signal_strength);
-                    let security_icon =
-                        if network.secured { "🔒" } else { "  " };
-                    let signal_color = match network.signal_strength {
-                        80..=100 => CatppuccinColors::GREEN,
-                        60..=79 => CatppuccinColors::YELLOW,
-                        40..=59 => CatppuccinColors::PEACH,
-                        _ => CatppuccinColors::RED,
-                    };
+        AppState::Disconnecting => {
+            let items: Vec<ListItem> =
+                app.networks.iter().map(create_network_list_item).collect();
 
-                    ListItem::new(Line::from(vec![
-                        Span::styled(
-                            format!("{} ", security_icon),
-                            Style::default().fg(CatppuccinColors::MAUVE),
-                        ),
-                        Span::styled(
-                            format!("{:<30}", network.ssid),
-                            Style::default().fg(CatppuccinColors::TEXT),
-                        ),
-                        Span::styled(
-                            signal_graph,
-                            Style::default().fg(signal_color),
-                        ),
-                    ]))
-                })
-                .collect();
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .style(Style::default().bg(CatppuccinColors::BASE)),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(CatppuccinColors::SURFACE0)
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("► ");
+
+            f.render_stateful_widget(
+                list,
+                chunks[0],
+                &mut app.list_state.clone(),
+            );
+
+            let popup_area = centered_rect(50, 20, f.area());
+            f.render_widget(Clear, popup_area);
+
+            let network_name = app
+                .selected_network
+                .as_ref()
+                .map(|n| n.ssid.as_str())
+                .unwrap_or("Unknown");
+
+            let disconnecting_modal = Paragraph::new(format!(
+                "Disconnecting from {}...\n\nPlease wait...",
+                network_name
+            ))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Disconnecting"),
+            )
+            .style(
+                Style::default()
+                    .fg(CatppuccinColors::PEACH)
+                    .bg(CatppuccinColors::BASE),
+            )
+            .alignment(Alignment::Center);
+
+            f.render_widget(disconnecting_modal, popup_area);
+        }
+        AppState::ConnectionResult => {
+            let items: Vec<ListItem> =
+                app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
                 .block(
@@ -728,6 +753,37 @@ async fn run_app<B: Backend>(
             continue;
         }
 
+        if app.state == AppState::Disconnecting {
+            if event::poll(Duration::from_millis(100))?
+                && let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+                && key.code == KeyCode::Esc
+            {
+                app.quit();
+                continue;
+            }
+
+            match disconnect_from_network(
+                app.selected_network.as_ref().unwrap(),
+            )
+            .await
+            {
+                Ok(_) => {
+                    app.connection_success = true;
+                    app.connection_error = None;
+                    app.status_message =
+                        "Disconnected successfully!".to_string();
+                }
+                Err(e) => {
+                    app.connection_success = false;
+                    app.connection_error = Some(e.to_string());
+                    app.status_message = "Disconnection failed".to_string();
+                }
+            }
+            app.state = AppState::ConnectionResult;
+            continue;
+        }
+
         if event::poll(Duration::from_millis(100))?
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
@@ -761,6 +817,9 @@ async fn run_app<B: Backend>(
                 },
                 AppState::Connecting => {
                     // Handled above in the connecting loop
+                }
+                AppState::Disconnecting => {
+                    // Handled above in the disconnecting loop
                 }
                 AppState::ConnectionResult => match key.code {
                     KeyCode::Esc => app.quit(),
