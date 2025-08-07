@@ -278,19 +278,9 @@ async fn connect_to_network(
     network: &WifiNetwork,
     password: Option<&str>,
 ) -> Result<(), Box<dyn Error>> {
-    use tokio::process::Command;
+    use std::process::Command;
 
-    // First, try to connect to existing connection
-    let mut cmd = Command::new("nmcli");
-    cmd.args(&["connection", "up", &network.ssid]);
-
-    let output = cmd.output().await?;
-
-    if output.status.success() {
-        return Ok(());
-    }
-
-    // If that fails, create a new connection
+    // Use nmcli command line tool for connection
     let mut cmd = Command::new("nmcli");
     cmd.args(&["device", "wifi", "connect", &network.ssid]);
 
@@ -298,13 +288,15 @@ async fn connect_to_network(
         cmd.args(&["password", pwd]);
     }
 
-    let output = cmd.output().await?;
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
 
     if output.status.success() {
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Connection failed: {}", error_msg.trim()).into())
+        Err(format!("nmcli failed: {}", error_msg).into())
     }
 }
 
