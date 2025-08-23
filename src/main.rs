@@ -265,11 +265,14 @@ async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
                 .request_scan(HashMap::new())
                 .map_err(|_| "Failed to request scan".to_string())?;
 
-            sleep(Duration::from_secs(3)).await;
+            for _ in 0..10 {
+                sleep(Duration::from_millis(100)).await;
+            }
 
             let access_points = wifi_device
                 .get_all_access_points()
                 .map_err(|_| "Failed to get access points".to_string())?;
+
             let mut networks = Vec::new();
 
             for ap in access_points {
@@ -822,15 +825,21 @@ async fn run_app<B: Backend>(
         }
 
         if app.state == AppState::Scanning {
-            if event::poll(Duration::from_millis(100))?
-                && let Event::Key(key) = event::read()?
-                && key.kind == KeyEventKind::Press
-                && key.code == KeyCode::Esc
-            {
-                app.quit();
+            // Process events during scanning to allow UI updates and handle resize
+            if event::poll(Duration::from_millis(100))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press
+                        && key.code == KeyCode::Esc
+                    {
+                        app.quit();
+                        continue;
+                    }
+                }
+                // For any other event (like resize), we continue to redraw
                 continue;
             }
 
+            // Perform the actual scan
             let networks = scan_wifi_networks().await?;
             app.networks = networks;
 
