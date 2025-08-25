@@ -1,4 +1,9 @@
-use std::{collections::HashMap, error::Error, io, time::Duration};
+use std::{
+    collections::HashMap,
+    error::Error,
+    io,
+    time::{Duration, Instant},
+};
 
 use crossterm::{
     event::{
@@ -83,6 +88,8 @@ enum AppState {
     Connecting,
     Disconnecting,
     ConnectionResult,
+    Help,
+    NetworkDetails,
 }
 
 struct App {
@@ -97,6 +104,10 @@ struct App {
     connection_success: bool,
     connection_error: Option<String>,
     is_disconnect_operation: bool,
+
+    adapter_info: Option<String>,
+    network_count: usize,
+    last_scan_time: Option<std::time::Instant>,
 }
 
 impl App {
@@ -116,6 +127,10 @@ impl App {
             connection_success: false,
             connection_error: None,
             is_disconnect_operation: false,
+
+            adapter_info: None,
+            network_count: 0,
+            last_scan_time: None,
         }
     }
 
@@ -241,6 +256,32 @@ async fn get_connected_ssid() -> Option<String> {
         for line in output_str.lines() {
             if let Some(stripped) = line.strip_prefix("yes:") {
                 return Some(stripped.to_string());
+            }
+        }
+    }
+    None
+}
+
+async fn get_wifi_adapter_info() -> Option<String> {
+    let output = Command::new("nmcli")
+        .args(["-t", "-f", "DEVICE,TYPE,STATE", "dev"])
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 3 && parts[1] == "wifi" && parts[2] == "connected"
+            {
+                return Some(parts[0].to_string());
+            }
+        }
+        // If no connected adapter, find any wifi adapter
+        for line in output_str.lines() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 2 && parts[1] == "wifi" {
+                return Some(parts[0].to_string());
             }
         }
     }
@@ -469,10 +510,21 @@ fn create_signal_graph(strength: u8) -> String {
     format!("{}{}", filled, empty)
 }
 
+fn get_frequency_band(frequency: u32) -> &'static str {
+    if frequency >= 5000 { "5G" } else { "2.4G" }
+}
+
+fn format_signal_strength(strength: u8) -> String {
+    format!("{}%", strength)
+}
+
 fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
     let signal_graph = create_signal_graph(network.signal_strength);
+    let signal_percent = format_signal_strength(network.signal_strength);
+    let frequency_band = get_frequency_band(network.frequency);
     let security_icon = if network.secured { "🔒" } else { "  " };
     let connection_icon = if network.connected { "🔗" } else { "  " };
+
     let signal_color = match network.signal_strength {
         80..=100 => CatppuccinColors::GREEN,
         60..=79 => CatppuccinColors::YELLOW,
@@ -495,19 +547,427 @@ fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
             Style::default().fg(CatppuccinColors::MAUVE),
         ),
         Span::styled(
-            format!("{:<28}", network.ssid),
+            format!("{:<24}", network.ssid),
             Style::default().fg(ssid_color),
+        ),
+        Span::styled(
+            format!("{:>4} ", frequency_band),
+            Style::default().fg(CatppuccinColors::SAPPHIRE),
+        ),
+        Span::styled(
+            format!("{:>4} ", signal_percent),
+            Style::default().fg(signal_color),
         ),
         Span::styled(signal_graph, Style::default().fg(signal_color)),
     ]))
+}
+
+fn render_header(f: &mut Frame, app: &App, area: Rect) {
+    let header_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(30),
+            Constraint::Min(0),
+            Constraint::Length(25),
+        ])
+        .split(area);
+
+    // Left side - App title and version
+    let title = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "nm-wifi",
+            Style::default()
+                .fg(CatppuccinColors::MAUVE)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            " v0.1.0",
+            Style::default().fg(CatppuccinColors::SUBTEXT1),
+        ),
+    ]))
+    .block(Block::default().borders(Borders::ALL))
+    .style(Style::default().bg(CatppuccinColors::BASE));
+
+    // Center - Network count and scan info
+    let scan_info = if let Some(scan_time) = app.last_scan_time {
+        let elapsed = scan_time.elapsed().as_secs();
+        format!(
+            "Networks: {} | Last scan: {}s ago",
+            app.network_count, elapsed
+        )
+    } else {
+        format!("Networks: {}", app.network_count)
+    };
+
+    let info = Paragraph::new(scan_info)
+        .block(Block::default().borders(Borders::ALL))
+        .style(
+            Style::default()
+                .fg(CatppuccinColors::TEXT)
+                .bg(CatppuccinColors::BASE),
+        )
+        .alignment(Alignment::Center);
+
+    // Right side - Adapter info
+    let adapter_text = app.adapter_info.as_deref().unwrap_or("WiFi Adapter");
+    let adapter = Paragraph::new(adapter_text)
+        .block(Block::default().borders(Borders::ALL))
+        .style(
+            Style::default()
+                .fg(CatppuccinColors::BLUE)
+                .bg(CatppuccinColors::BASE),
+        )
+        .alignment(Alignment::Center);
+
+    f.render_widget(title, header_chunks[0]);
+    f.render_widget(info, header_chunks[1]);
+    f.render_widget(adapter, header_chunks[2]);
+}
+
+fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
+    let status_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(40)])
+        .split(area);
+
+    // Main status message
+    let status = Paragraph::new(app.status_message.as_str())
+        .block(Block::default().borders(Borders::ALL))
+        .style(
+            Style::default()
+                .fg(CatppuccinColors::SUBTEXT1)
+                .bg(CatppuccinColors::BASE),
+        )
+        .alignment(Alignment::Left);
+
+    // Keybindings hint
+    let keybindings = match app.state {
+        AppState::NetworkList => {
+            "h:Help | i:Info | r:Rescan | c/Enter:Connect | d:Disconnect | q:Quit"
+        }
+        AppState::Help => "h/q/Esc:Back",
+        AppState::NetworkDetails => "q/i/Esc:Back",
+        AppState::PasswordInput => "Enter:Connect | Esc:Cancel",
+        _ => "Esc:Cancel | q:Quit",
+    };
+
+    let hints = Paragraph::new(keybindings)
+        .block(Block::default().borders(Borders::ALL))
+        .style(
+            Style::default()
+                .fg(CatppuccinColors::OVERLAY1)
+                .bg(CatppuccinColors::BASE),
+        )
+        .alignment(Alignment::Center);
+
+    f.render_widget(status, status_chunks[0]);
+    f.render_widget(hints, status_chunks[1]);
+}
+
+fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
+    let help_text = vec![
+        Line::from(vec![Span::styled(
+            "Navigation",
+            Style::default()
+                .fg(CatppuccinColors::MAUVE)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("↑/k", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "        Move up",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("↓/j", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "        Move down",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Actions",
+            Style::default()
+                .fg(CatppuccinColors::MAUVE)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                "Enter/c",
+                Style::default().fg(CatppuccinColors::GREEN),
+            ),
+            Span::styled(
+                "     Connect to network",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("d", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "           Disconnect from network",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("r", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "           Rescan networks",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("i", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "           Show network details",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Other",
+            Style::default()
+                .fg(CatppuccinColors::MAUVE)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("h", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "         Show this help",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("q/Esc", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "      Quit application",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Symbols",
+            Style::default()
+                .fg(CatppuccinColors::MAUVE)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("🔗", Style::default().fg(CatppuccinColors::GREEN)),
+            Span::styled(
+                "         Connected",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("🔒", Style::default().fg(CatppuccinColors::MAUVE)),
+            Span::styled(
+                "         Secured network",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "2.4G/5G",
+                Style::default().fg(CatppuccinColors::SAPPHIRE),
+            ),
+            Span::styled(
+                "     Frequency band",
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
+        ]),
+    ];
+
+    let help_paragraph = Paragraph::new(help_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Help - nm-wifi")
+                .title_style(
+                    Style::default()
+                        .fg(CatppuccinColors::BLUE)
+                        .add_modifier(Modifier::BOLD),
+                ),
+        )
+        .style(Style::default().bg(CatppuccinColors::BASE))
+        .alignment(Alignment::Left);
+
+    f.render_widget(help_paragraph, area);
+}
+
+fn render_network_details(f: &mut Frame, app: &App) {
+    if let Some(network) = app.networks.get(app.selected_index) {
+        let popup_area = centered_rect(60, 70, f.area());
+        f.render_widget(Clear, popup_area);
+
+        let security_type = if network.secured {
+            "Secured (WPA/WPA2)"
+        } else {
+            "Open"
+        };
+
+        let signal_description = match network.signal_strength {
+            80..=100 => "Excellent",
+            60..=79 => "Good",
+            40..=59 => "Fair",
+            20..=39 => "Weak",
+            _ => "Very Weak",
+        };
+
+        let signal_text =
+            format!("{}% ({})", network.signal_strength, signal_description);
+        let frequency_text = format!(
+            "{} MHz ({})",
+            network.frequency,
+            get_frequency_band(network.frequency)
+        );
+
+        let details_text = vec![
+            Line::from(vec![
+                Span::styled(
+                    "SSID: ",
+                    Style::default()
+                        .fg(CatppuccinColors::MAUVE)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    &network.ssid,
+                    Style::default().fg(CatppuccinColors::TEXT),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Status: ",
+                    Style::default()
+                        .fg(CatppuccinColors::MAUVE)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    if network.connected {
+                        "Connected"
+                    } else {
+                        "Available"
+                    },
+                    Style::default().fg(if network.connected {
+                        CatppuccinColors::GREEN
+                    } else {
+                        CatppuccinColors::TEXT
+                    }),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Security: ",
+                    Style::default()
+                        .fg(CatppuccinColors::MAUVE)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    security_type,
+                    Style::default().fg(CatppuccinColors::TEXT),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Signal Strength: ",
+                    Style::default()
+                        .fg(CatppuccinColors::MAUVE)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    &signal_text,
+                    Style::default().fg(match network.signal_strength {
+                        80..=100 => CatppuccinColors::GREEN,
+                        60..=79 => CatppuccinColors::YELLOW,
+                        40..=59 => CatppuccinColors::PEACH,
+                        _ => CatppuccinColors::RED,
+                    }),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Frequency: ",
+                    Style::default()
+                        .fg(CatppuccinColors::MAUVE)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    &frequency_text,
+                    Style::default().fg(CatppuccinColors::SAPPHIRE),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Press ",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
+                Span::styled(
+                    "i",
+                    Style::default()
+                        .fg(CatppuccinColors::GREEN)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " or ",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(CatppuccinColors::GREEN)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " to close",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
+            ]),
+        ];
+
+        let details_paragraph = Paragraph::new(details_text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Network Details")
+                    .title_style(
+                        Style::default()
+                            .fg(CatppuccinColors::BLUE)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+            )
+            .style(Style::default().bg(CatppuccinColors::BASE))
+            .alignment(Alignment::Left);
+
+        f.render_widget(details_paragraph, popup_area);
+    }
 }
 
 fn ui(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(0)
-        .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
+        .constraints(
+            [
+                Constraint::Length(3), // Header
+                Constraint::Min(0),    // Main content
+                Constraint::Length(3), // Status bar
+            ]
+            .as_ref(),
+        )
         .split(f.area());
+
+    // Render header
+    render_header(f, app, chunks[0]);
 
     match app.state {
         AppState::Scanning => {
@@ -532,11 +992,24 @@ fn ui(f: &mut Frame, app: &App) {
                 let items: Vec<ListItem> =
                     app.networks.iter().map(create_network_list_item).collect();
 
+                let scanning_title = Line::from(vec![
+                    Span::styled(
+                        "🔍 ",
+                        Style::default().fg(CatppuccinColors::YELLOW),
+                    ),
+                    Span::styled(
+                        "Scanning...",
+                        Style::default()
+                            .fg(CatppuccinColors::YELLOW)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]);
+
                 let list = List::new(items)
                     .block(
                         Block::default()
                             .style(Style::default().bg(CatppuccinColors::BASE))
-                            .title("Scanning...")
+                            .title(scanning_title)
                             .borders(Borders::ALL),
                     )
                     .highlight_style(
@@ -549,12 +1022,69 @@ fn ui(f: &mut Frame, app: &App) {
 
                 f.render_stateful_widget(
                     list,
-                    chunks[0],
+                    chunks[1],
                     &mut app.list_state.clone(),
                 );
             }
         }
         AppState::NetworkList => {
+            let items: Vec<ListItem> =
+                app.networks.iter().map(create_network_list_item).collect();
+
+            let list_title = Line::from(vec![
+                Span::styled(
+                    "📶 ",
+                    Style::default().fg(CatppuccinColors::BLUE),
+                ),
+                Span::styled(
+                    "WiFi Networks",
+                    Style::default()
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " | ",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
+                Span::styled(
+                    "🔗:Connected ",
+                    Style::default().fg(CatppuccinColors::GREEN),
+                ),
+                Span::styled(
+                    "🔒:Secured ",
+                    Style::default().fg(CatppuccinColors::MAUVE),
+                ),
+                Span::styled(
+                    "2.4G/5G:Band",
+                    Style::default().fg(CatppuccinColors::SAPPHIRE),
+                ),
+            ]);
+
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .title(list_title)
+                        .borders(Borders::ALL)
+                        .style(Style::default().bg(CatppuccinColors::BASE)),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(CatppuccinColors::SURFACE0)
+                        .fg(CatppuccinColors::TEXT)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("► ");
+
+            f.render_stateful_widget(
+                list,
+                chunks[1],
+                &mut app.list_state.clone(),
+            );
+        }
+        AppState::Help => {
+            render_help_screen(f, app, chunks[1]);
+        }
+        AppState::NetworkDetails => {
             let items: Vec<ListItem> =
                 app.networks.iter().map(create_network_list_item).collect();
 
@@ -573,9 +1103,11 @@ fn ui(f: &mut Frame, app: &App) {
 
             f.render_stateful_widget(
                 list,
-                chunks[0],
+                chunks[1],
                 &mut app.list_state.clone(),
             );
+
+            render_network_details(f, app);
         }
         AppState::PasswordInput => {
             let items: Vec<ListItem> =
@@ -809,14 +1341,7 @@ fn ui(f: &mut Frame, app: &App) {
         }
     }
 
-    let status = Paragraph::new(app.status_message.as_str())
-        .style(
-            Style::default()
-                .fg(CatppuccinColors::SUBTEXT1)
-                .bg(CatppuccinColors::BASE),
-        )
-        .alignment(Alignment::Center);
-    f.render_widget(status, chunks[1]);
+    render_status_bar(f, app, chunks[2]);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
@@ -888,6 +1413,13 @@ async fn run_app<B: Backend>(
             let networks = scan_wifi_networks().await?;
             let previous_count = app.networks.len();
             app.networks = networks;
+            app.network_count = app.networks.len();
+            app.last_scan_time = Some(Instant::now());
+
+            // Get adapter info on first scan
+            if app.adapter_info.is_none() {
+                app.adapter_info = get_wifi_adapter_info().await;
+            }
 
             // Update selection when first networks appear or preserve selection
             if previous_count == 0 && !app.networks.is_empty() {
@@ -900,12 +1432,14 @@ async fn run_app<B: Backend>(
 
             // Check if we should finish scanning (after reasonable time or enough networks)
             if !app.networks.is_empty() {
-                app.status_message =
-                    "Use ↑/↓ or j/k to navigate, Enter/c to connect, d to disconnect, r to rescan, q/Esc to quit"
-                        .to_string();
+                app.status_message = format!(
+                    "Found {} network(s). Ready to connect!",
+                    app.networks.len()
+                );
                 app.state = AppState::NetworkList;
             } else {
-                app.status_message = "Scanning for networks...".to_string();
+                app.status_message =
+                    "Scanning for WiFi networks...".to_string();
             }
 
             continue;
@@ -1014,6 +1548,26 @@ async fn run_app<B: Backend>(
                         app.status_message =
                             "Scanning for networks...".to_string();
                         app.networks.clear();
+                    }
+                    KeyCode::Char('h') => {
+                        app.state = AppState::Help;
+                    }
+                    KeyCode::Char('i') => {
+                        if !app.networks.is_empty() {
+                            app.state = AppState::NetworkDetails;
+                        }
+                    }
+                    _ => {}
+                },
+                AppState::Help => match key.code {
+                    KeyCode::Esc | KeyCode::Char('h') | KeyCode::Char('q') => {
+                        app.state = AppState::NetworkList;
+                    }
+                    _ => {}
+                },
+                AppState::NetworkDetails => match key.code {
+                    KeyCode::Esc | KeyCode::Char('i') | KeyCode::Char('q') => {
+                        app.state = AppState::NetworkList;
                     }
                     _ => {}
                 },
