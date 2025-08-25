@@ -239,8 +239,8 @@ async fn get_connected_ssid() -> Option<String> {
     if output.status.success() {
         let output_str = String::from_utf8_lossy(&output.stdout);
         for line in output_str.lines() {
-            if line.starts_with("yes:") {
-                return Some(line[4..].to_string());
+            if let Some(stripped) = line.strip_prefix("yes:") {
+                return Some(stripped.to_string());
             }
         }
     }
@@ -265,9 +265,8 @@ async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
                 .request_scan(HashMap::new())
                 .map_err(|_| "Failed to request scan".to_string())?;
 
-            for _ in 0..10 {
-                sleep(Duration::from_millis(100)).await;
-            }
+            // Brief wait for scan to start
+            sleep(Duration::from_millis(200)).await;
 
             let access_points = wifi_device
                 .get_all_access_points()
@@ -512,21 +511,48 @@ fn ui(f: &mut Frame, app: &App) {
 
     match app.state {
         AppState::Scanning => {
-            let popup_area = centered_rect(50, 20, f.area());
-            f.render_widget(Clear, popup_area);
+            if app.networks.is_empty() {
+                let popup_area = centered_rect(50, 20, f.area());
+                f.render_widget(Clear, popup_area);
 
-            let scanning_modal = Paragraph::new(
-                "Scanning for WiFi networks...\n\nPlease wait...",
-            )
-            .block(Block::default().borders(Borders::ALL).title("Scanning"))
-            .style(
-                Style::default()
-                    .fg(CatppuccinColors::BLUE)
-                    .bg(CatppuccinColors::BASE),
-            )
-            .alignment(Alignment::Center);
+                let scanning_modal = Paragraph::new(
+                    "Scanning for WiFi networks...\n\nPlease wait...",
+                )
+                .block(Block::default().borders(Borders::ALL).title("Scanning"))
+                .style(
+                    Style::default()
+                        .fg(CatppuccinColors::BLUE)
+                        .bg(CatppuccinColors::BASE),
+                )
+                .alignment(Alignment::Center);
 
-            f.render_widget(scanning_modal, popup_area);
+                f.render_widget(scanning_modal, popup_area);
+            } else {
+                // Show networks as they appear during scanning
+                let items: Vec<ListItem> =
+                    app.networks.iter().map(create_network_list_item).collect();
+
+                let list = List::new(items)
+                    .block(
+                        Block::default()
+                            .style(Style::default().bg(CatppuccinColors::BASE))
+                            .title("Scanning...")
+                            .borders(Borders::ALL),
+                    )
+                    .highlight_style(
+                        Style::default()
+                            .bg(CatppuccinColors::SURFACE0)
+                            .fg(CatppuccinColors::TEXT)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .highlight_symbol("► ");
+
+                f.render_stateful_widget(
+                    list,
+                    chunks[0],
+                    &mut app.list_state.clone(),
+                );
+            }
         }
         AppState::NetworkList => {
             let items: Vec<ListItem> =
@@ -825,34 +851,46 @@ async fn run_app<B: Backend>(
         }
 
         if app.state == AppState::Scanning {
-            // Process events during scanning to allow UI updates and handle resize
+            // Process events during scanning to allow UI updates and handle input
             if event::poll(Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press
-                        && key.code == KeyCode::Esc
-                    {
-                        app.quit();
-                        continue;
+                if let Event::Key(key) = event::read()?
+                    && key.kind == KeyEventKind::Press
+                {
+                    match key.code {
+                        KeyCode::Esc => {
+                            app.quit();
+                            continue;
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            if !app.networks.is_empty() {
+                                app.next();
+                            }
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            if !app.networks.is_empty() {
+                                app.previous();
+                            }
+                        }
+                        KeyCode::Enter | KeyCode::Char('c') => {
+                            if !app.networks.is_empty() {
+                                app.select_network();
+                                continue;
+                            }
+                        }
+                        _ => {}
                     }
                 }
-                // For any other event (like resize), we continue to redraw
+                // Continue to redraw with any new events
                 continue;
             }
 
-            // Perform the actual scan
+            // Perform incremental scan
             let networks = scan_wifi_networks().await?;
+            let previous_count = app.networks.len();
             app.networks = networks;
 
-            if app.networks.is_empty() {
-                app.status_message =
-                    "No networks found. Press 'r' to rescan or q/Esc to quit"
-                        .to_string();
-            } else {
-                app.status_message =
-                    "Use ↑/↓ or j/k to navigate, Enter/c to connect, d to disconnect, r to rescan, q/Esc to quit"
-                        .to_string();
-
-                // Update selection to preserve the previously selected network
+            // Update selection when first networks appear or preserve selection
+            if previous_count == 0 && !app.networks.is_empty() {
                 if app.selected_network.is_some() {
                     app.update_selection_after_rescan();
                 } else {
@@ -860,7 +898,16 @@ async fn run_app<B: Backend>(
                 }
             }
 
-            app.state = AppState::NetworkList;
+            // Check if we should finish scanning (after reasonable time or enough networks)
+            if !app.networks.is_empty() {
+                app.status_message =
+                    "Use ↑/↓ or j/k to navigate, Enter/c to connect, d to disconnect, r to rescan, q/Esc to quit"
+                        .to_string();
+                app.state = AppState::NetworkList;
+            } else {
+                app.status_message = "Scanning for networks...".to_string();
+            }
+
             continue;
         }
 
