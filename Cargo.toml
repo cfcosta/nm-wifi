@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 networkmanager = "0.5"
-ratatui = "0.28"
-crossterm = "0.28"
+ratatui = "0.29"
+crossterm = "0.29"
 tokio = { version = "1.0", features = ["full"] }
 dbus = "0.9.7"
