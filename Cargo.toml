@@ -3,6 +3,7 @@ name = "nm-wifi"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
+description = "A Terminal User Interface for managing Wi-Fi connections on Linux"
 
 [dependencies]
 networkmanager = "0.5"
