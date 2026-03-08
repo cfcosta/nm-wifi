@@ -8,6 +8,10 @@ use tokio::time::sleep;
 
 use crate::types::WifiNetwork;
 
+fn managed_connection_name(ssid: &str) -> String {
+    format!("nm-wifi-{}", ssid)
+}
+
 pub async fn get_connected_ssid() -> Option<String> {
     let output = Command::new("nmcli")
         .args(["-t", "-f", "ACTIVE,SSID", "dev", "wifi"])
@@ -164,6 +168,8 @@ pub async fn connect_to_network(
     let mut cmd = Command::new("nmcli");
 
     if network.secured {
+        let connection_name = managed_connection_name(&network.ssid);
+
         // For secured networks, use the connection add approach
         cmd.args([
             "connection",
@@ -171,7 +177,7 @@ pub async fn connect_to_network(
             "type",
             "wifi",
             "con-name",
-            &network.ssid,
+            &connection_name,
             "ssid",
             &network.ssid,
             "wifi-sec.key-mgmt",
@@ -193,7 +199,7 @@ pub async fn connect_to_network(
                 modify_cmd.args([
                     "connection",
                     "modify",
-                    &network.ssid,
+                    &connection_name,
                     "wifi-sec.psk",
                     password.unwrap(),
                 ]);
@@ -213,7 +219,7 @@ pub async fn connect_to_network(
 
         // Now activate the connection
         let mut activate_cmd = Command::new("nmcli");
-        activate_cmd.args(["connection", "up", &network.ssid]);
+        activate_cmd.args(["connection", "up", &connection_name]);
 
         let activate_output = activate_cmd
             .output()
@@ -262,7 +268,7 @@ pub async fn disconnect_from_network(_network: &WifiNetwork) -> Result<(), Box<d
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_any_wifi_device, parse_connected_wifi_device};
+    use super::{managed_connection_name, parse_any_wifi_device, parse_connected_wifi_device};
 
     #[test]
     fn adapter_parser_prefers_connected_wifi_devices() {
@@ -277,5 +283,10 @@ mod tests {
     fn adapter_parser_can_fall_back_to_any_wifi_device() {
         let output = "eth0:ethernet:connected\nwlan1:wifi:disconnected";
         assert_eq!(parse_any_wifi_device(output), Some("wlan1".to_string()));
+    }
+
+    #[test]
+    fn managed_connection_names_are_namespaced() {
+        assert_eq!(managed_connection_name("home"), "nm-wifi-home");
     }
 }
