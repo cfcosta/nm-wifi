@@ -69,11 +69,11 @@ fn public_ui_helpers_remain_usable_from_integration_tests() {
 #[tokio::test]
 async fn demo_network_module_scans_and_connects_in_integration_tests() {
     use nm_wifi::{
-        backend::{CurrentNetworkBackend, NetworkBackend},
+        backend::{DemoNetworkBackend, NetworkBackend},
         network::{ConnectionRequest, demo_networks},
     };
 
-    let backend = CurrentNetworkBackend;
+    let backend = DemoNetworkBackend;
     let networks = backend.scan_networks().await.expect("demo scan succeeds");
     assert!(networks.iter().any(|network| network.ssid == "CatCat"));
     assert_eq!(

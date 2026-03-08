@@ -8,9 +8,9 @@ use dbus::arg::{PropMap, RefArg, Variant};
 use crate::wifi::WifiNetwork;
 
 #[cfg(feature = "demo")]
-mod demo;
+pub(crate) mod demo;
 #[cfg(not(feature = "demo"))]
-mod networkmanager;
+pub(crate) mod networkmanager;
 
 pub enum ConnectionRequest<'a> {
     Open {
