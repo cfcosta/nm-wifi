@@ -57,8 +57,13 @@
             name = "nm-wifi";
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
+            cargoBuildFlags = [
+              "--bin"
+              "nm-wifi"
+            ];
             buildInputs = [ pkgs.dbus.dev ];
             nativeBuildInputs = [ pkgs.pkg-config ];
+            meta.mainProgram = "nm-wifi";
           };
         }
       );
