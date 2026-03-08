@@ -163,7 +163,7 @@ pub fn render_header(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            " v0.1.0",
+            concat!(" v", env!("CARGO_PKG_VERSION")),
             Style::default().fg(CatppuccinColors::SUBTEXT1),
         ),
     ]))
