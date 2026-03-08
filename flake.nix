@@ -26,7 +26,6 @@
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
         "aarch64-darwin"
       ];
 
@@ -34,20 +33,20 @@
         f:
         inputs.nixpkgs.lib.genAttrs supportedSystems (
           system:
-          f {
-            inherit system;
+          let
             pkgs = import inputs.nixpkgs {
               inherit system;
               overlays = [ (import rust-overlay) ];
             };
-          }
+            rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+          in
+          f { inherit pkgs rust system; }
         );
     in
     {
       packages = forEachSupportedSystem (
-        { pkgs, ... }:
+        { pkgs, rust, ... }:
         let
-          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           rustPlatform = pkgs.makeRustPlatform {
             rustc = rust;
             cargo = rust;
@@ -65,7 +64,7 @@
       );
 
       formatter = forEachSupportedSystem (
-        { pkgs, ... }:
+        { pkgs, rust, ... }:
         (treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
 
@@ -77,7 +76,7 @@
 
             formatter = {
               nixfmt.options = [ "--strict" ];
-              rustfmt.package = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+              rustfmt.package = rust;
             };
           };
 
@@ -86,7 +85,7 @@
             prettier.enable = true;
             rustfmt = {
               enable = true;
-              package = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+              package = rust;
             };
             taplo.enable = true;
           };
@@ -112,10 +111,12 @@
       );
 
       devShells = forEachSupportedSystem (
-        { pkgs, system, ... }:
-        let
-          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-        in
+        {
+          pkgs,
+          rust,
+          system,
+          ...
+        }:
         {
           default = pkgs.mkShell {
             name = "nm-wifi";
