@@ -11,9 +11,10 @@ use crossterm::{
 };
 use nm_wifi::{
     network::{
+        ConnectionRequest,
         connect_to_network,
         disconnect_from_network,
-        get_wifi_adapter_info,
+        get_wifi_adapter_name,
         scan_wifi_networks,
     },
     types::{App, AppState, WifiSecurity},
@@ -118,8 +119,8 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
             app.last_scan_time = Some(Instant::now());
 
             // Get adapter info on first scan
-            if app.adapter_info.is_none() {
-                app.adapter_info = get_wifi_adapter_info().await;
+            if app.adapter_name.is_none() {
+                app.adapter_name = get_wifi_adapter_name().await.ok().flatten();
             }
 
             // Update selection when first networks appear or preserve selection
@@ -153,13 +154,17 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                 continue;
             }
 
-            let password = if app.selected_network.as_ref().unwrap().security != WifiSecurity::Open {
-                Some(app.password_input.as_str())
+            let network = app.selected_network.as_ref().unwrap();
+            let request = if network.security == WifiSecurity::Open {
+                ConnectionRequest::Open { network }
             } else {
-                None
+                ConnectionRequest::Secured {
+                    network,
+                    password: app.password_input.as_str(),
+                }
             };
 
-            match connect_to_network(app.selected_network.as_ref().unwrap(), password).await {
+            match connect_to_network(request).await {
                 Ok(_) => {
                     app.connection_success = true;
                     app.connection_error = None;

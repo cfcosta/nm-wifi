@@ -152,7 +152,7 @@ pub fn render_header(f: &mut Frame, app: &App, area: Rect) {
         .alignment(Alignment::Center);
 
     // Right side - Adapter info
-    let adapter_text = app.adapter_info.as_deref().unwrap_or("WiFi Adapter");
+    let adapter_text = app.adapter_name.as_deref().unwrap_or("WiFi Adapter");
     let adapter = Paragraph::new(adapter_text)
         .block(Block::default().borders(Borders::ALL))
         .style(
@@ -606,7 +606,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
         result_text.push(Line::from("Network: Unknown"));
     }
 
-    if let Some(interface_name) = app.adapter_info.as_deref() {
+    if let Some(interface_name) = app.adapter_name.as_deref() {
         result_text.push(Line::from(format!("Interface: {}", interface_name)));
     }
 

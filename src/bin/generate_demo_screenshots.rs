@@ -57,7 +57,7 @@ fn base_app(networks: &[WifiNetwork]) -> App {
     let mut app = App::new();
     app.networks = networks.to_vec();
     app.network_count = app.networks.len();
-    app.adapter_info = Some("demo-wlan0".to_string());
+    app.adapter_name = Some("demo-wlan0".to_string());
     app.list_state.select(Some(0));
     app.selected_index = 0;
     app.status_message = if networks.is_empty() {

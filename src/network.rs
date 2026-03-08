@@ -2,6 +2,8 @@
 use std::collections::HashMap;
 use std::error::Error;
 #[cfg(not(feature = "demo"))]
+use std::io;
+#[cfg(not(feature = "demo"))]
 use std::time::Duration;
 
 #[cfg(any(test, not(feature = "demo")))]
@@ -15,6 +17,11 @@ use networkmanager::{
 use tokio::time::sleep;
 
 use crate::types::{WifiNetwork, WifiSecurity};
+
+#[cfg(not(feature = "demo"))]
+fn contextual_error(context: &str, error: impl std::fmt::Display) -> Box<dyn Error> {
+    io::Error::other(format!("{context}: {error}")).into()
+}
 
 #[cfg(feature = "demo")]
 fn demo_networks() -> Vec<WifiNetwork> {
@@ -51,7 +58,12 @@ fn demo_networks() -> Vec<WifiNetwork> {
 }
 
 #[cfg(feature = "demo")]
-fn demo_connect(network: &WifiNetwork, password: Option<&str>) -> Result<(), Box<dyn Error>> {
+fn demo_connect(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+    let (network, password) = match request {
+        ConnectionRequest::Open { network } => (network, None),
+        ConnectionRequest::Secured { network, password } => (network, Some(password)),
+    };
+
     match (network.ssid.as_str(), network.security, password) {
         ("Coffee Corner", WifiSecurity::Open, _) => Ok(()),
         ("VIVOFIBRA-5210-5G", WifiSecurity::WpaPsk, Some("hunter2")) => Ok(()),
@@ -62,6 +74,25 @@ fn demo_connect(network: &WifiNetwork, password: Option<&str>) -> Result<(), Box
         (_, WifiSecurity::Open, _) => Ok(()),
         (_, _, Some(_)) => Err("Demo mode: invalid password".into()),
         _ => Err("Demo mode: password required for secured network".into()),
+    }
+}
+
+pub enum ConnectionRequest<'a> {
+    Open {
+        network: &'a WifiNetwork,
+    },
+    Secured {
+        network: &'a WifiNetwork,
+        password: &'a str,
+    },
+}
+
+#[cfg(not(feature = "demo"))]
+impl ConnectionRequest<'_> {
+    fn network(&self) -> &WifiNetwork {
+        match self {
+            Self::Open { network } | Self::Secured { network, .. } => network,
+        }
     }
 }
 
@@ -118,51 +149,66 @@ fn should_disconnect_device(active_ssid: Option<&str>, target_ssid: &str) -> boo
 }
 
 #[cfg(not(feature = "demo"))]
-fn get_connected_ssid_via_nm() -> Option<String> {
-    let dbus = dbus::blocking::Connection::new_system().ok()?;
+fn get_connected_ssid_via_nm() -> Result<Option<String>, Box<dyn Error>> {
+    let dbus = dbus::blocking::Connection::new_system()
+        .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
     let nm = NetworkManager::new(&dbus);
+    let devices = nm
+        .get_devices()
+        .map_err(|error| contextual_error("Failed to list NetworkManager devices", error))?;
 
-    for device in nm.get_devices().ok()? {
-        if let Device::WiFi(wifi_device) = device
-            && let Ok(access_point) = wifi_device.active_access_point()
-            && let Ok(ssid) = access_point.ssid()
-            && !ssid.is_empty()
-        {
-            return Some(ssid);
+    for device in devices {
+        if let Device::WiFi(wifi_device) = device {
+            let access_point = match wifi_device.active_access_point() {
+                Ok(access_point) => access_point,
+                Err(_) => continue,
+            };
+            let ssid = access_point
+                .ssid()
+                .map_err(|error| contextual_error("Failed to read active WiFi SSID", error))?;
+            if !ssid.is_empty() {
+                return Ok(Some(ssid));
+            }
         }
     }
 
-    None
+    Ok(None)
 }
 
 #[cfg(feature = "demo")]
-pub async fn get_connected_ssid() -> Option<String> {
-    demo_networks()
+pub async fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
+    Ok(demo_networks()
         .into_iter()
         .find(|network| network.connected)
-        .map(|network| network.ssid)
+        .map(|network| network.ssid))
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn get_connected_ssid() -> Option<String> {
+pub async fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
     get_connected_ssid_via_nm()
 }
 
 #[cfg(not(feature = "demo"))]
-fn choose_wifi_adapter(connected: Option<String>, available: Vec<String>) -> Option<String> {
+fn choose_wifi_adapter_name(connected: Option<String>, available: Vec<String>) -> Option<String> {
     connected.or_else(|| available.into_iter().next())
 }
 
 #[cfg(not(feature = "demo"))]
-fn get_wifi_adapter_info_via_nm() -> Option<String> {
-    let dbus = dbus::blocking::Connection::new_system().ok()?;
+fn get_wifi_adapter_name_via_nm() -> Result<Option<String>, Box<dyn Error>> {
+    let dbus = dbus::blocking::Connection::new_system()
+        .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
     let nm = NetworkManager::new(&dbus);
+    let devices = nm
+        .get_devices()
+        .map_err(|error| contextual_error("Failed to list NetworkManager devices", error))?;
     let mut connected = None;
     let mut available = Vec::new();
 
-    for device in nm.get_devices().ok()? {
+    for device in devices {
         if let Device::WiFi(wifi_device) = device {
-            let iface = wifi_device.interface().ok()?;
+            let iface = wifi_device
+                .interface()
+                .map_err(|error| contextual_error("Failed to read WiFi interface name", error))?;
             let is_connected = wifi_device
                 .active_access_point()
                 .ok()
@@ -176,17 +222,17 @@ fn get_wifi_adapter_info_via_nm() -> Option<String> {
         }
     }
 
-    choose_wifi_adapter(connected, available)
+    Ok(choose_wifi_adapter_name(connected, available))
 }
 
 #[cfg(feature = "demo")]
-pub async fn get_wifi_adapter_info() -> Option<String> {
-    Some("demo-wlan0".to_string())
+pub async fn get_wifi_adapter_name() -> Result<Option<String>, Box<dyn Error>> {
+    Ok(Some("demo-wlan0".to_string()))
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn get_wifi_adapter_info() -> Option<String> {
-    get_wifi_adapter_info_via_nm()
+pub async fn get_wifi_adapter_name() -> Result<Option<String>, Box<dyn Error>> {
+    get_wifi_adapter_name_via_nm()
 }
 
 #[cfg(not(feature = "demo"))]
@@ -206,15 +252,14 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
 #[cfg(not(feature = "demo"))]
 pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system()
-        .map_err(|_| "Failed to connect to D-Bus".to_string())?;
+        .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
     let nm = NetworkManager::new(&dbus);
 
-    // Get currently connected SSID
-    let connected_ssid = get_connected_ssid().await;
+    let connected_ssid = get_connected_ssid().await?;
 
     let devices = nm
         .get_devices()
-        .map_err(|_| "Failed to get devices".to_string())?;
+        .map_err(|error| contextual_error("Failed to list NetworkManager devices", error))?;
 
     for device in devices {
         if let Device::WiFi(wifi_device) = device {
@@ -222,7 +267,7 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
 
             wifi_device
                 .request_scan(HashMap::new())
-                .map_err(|_| "Failed to request scan".to_string())?;
+                .map_err(|error| contextual_error("Failed to request WiFi scan", error))?;
 
             let last_scan_after_request = wifi_device.last_scan().unwrap_or(last_scan_before_request);
             let wait_duration =
@@ -233,30 +278,34 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
 
             let access_points = wifi_device
                 .get_all_access_points()
-                .map_err(|_| "Failed to get access points".to_string())?;
+                .map_err(|error| contextual_error("Failed to list WiFi access points", error))?;
 
             let mut networks = Vec::new();
 
             for ap in access_points {
-                let ssid = ap.ssid().map_err(|_| "Failed to get SSID".to_string())?;
+                let ssid = ap
+                    .ssid()
+                    .map_err(|error| contextual_error("Failed to read access point SSID", error))?;
                 if !ssid.is_empty() {
-                    let flags = ap.flags().map_err(|_| "Failed to get flags".to_string())?;
-                    let wpa_flags = ap
-                        .wpa_flags()
-                        .map_err(|_| "Failed to get WPA flags".to_string())?;
-                    let rsn_flags = ap
-                        .rsn_flags()
-                        .map_err(|_| "Failed to get RSN flags".to_string())?;
+                    let flags = ap.flags().map_err(|error| {
+                        contextual_error("Failed to read access point flags", error)
+                    })?;
+                    let wpa_flags = ap.wpa_flags().map_err(|error| {
+                        contextual_error("Failed to read WPA capabilities", error)
+                    })?;
+                    let rsn_flags = ap.rsn_flags().map_err(|error| {
+                        contextual_error("Failed to read RSN capabilities", error)
+                    })?;
 
                     let security = classify_access_point_security(flags, wpa_flags, rsn_flags);
 
                     let signal_strength = ap
                         .strength()
-                        .map_err(|_| "Failed to get signal strength".to_string())?;
+                        .map_err(|error| contextual_error("Failed to read signal strength", error))?;
 
                     let frequency = ap
                         .frequency()
-                        .map_err(|_| "Failed to get frequency".to_string())?;
+                        .map_err(|error| contextual_error("Failed to read WiFi frequency", error))?;
 
                     let connected = connected_ssid.as_ref() == Some(&ssid);
 
@@ -373,14 +422,16 @@ fn secured_network_connection_settings(
 #[cfg(not(feature = "demo"))]
 fn connect_via_networkmanager(
     settings: HashMap<&'static str, PropMap>,
-) -> Result<bool, Box<dyn Error>> {
-    let adapter = match get_wifi_adapter_info_via_nm() {
-        Some(adapter) => adapter,
-        None => return Ok(false),
-    };
+) -> Result<(), Box<dyn Error>> {
+    let adapter = get_wifi_adapter_name_via_nm()?.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "No WiFi adapter was found in NetworkManager",
+        )
+    })?;
 
     let dbus = dbus::blocking::Connection::new_system()
-        .map_err(|_| "Failed to connect to D-Bus".to_string())?;
+        .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
     let proxy = nm_wifi_proxy(&dbus);
 
     let (device_path,): (dbus::Path<'static>,) = proxy
@@ -389,104 +440,71 @@ fn connect_via_networkmanager(
             "GetDeviceByIpIface",
             (adapter.as_str(),),
         )
-        .map_err(|_| "Failed to find WiFi device in NetworkManager".to_string())?;
+        .map_err(|error| contextual_error("Failed to find WiFi device in NetworkManager", error))?;
 
     let specific_object = dbus::Path::from("/");
-    let result: Result<(dbus::Path<'static>, dbus::Path<'static>), dbus::Error> = proxy.method_call(
-        "org.freedesktop.NetworkManager",
-        "AddAndActivateConnection",
-        (settings, device_path, specific_object),
-    );
+    let _: (dbus::Path<'static>, dbus::Path<'static>) = proxy
+        .method_call(
+            "org.freedesktop.NetworkManager",
+            "AddAndActivateConnection",
+            (settings, device_path, specific_object),
+        )
+        .map_err(|error| {
+            contextual_error(
+                "NetworkManager failed to activate the WiFi connection",
+                error,
+            )
+        })?;
 
-    match result {
-        Ok(_) => Ok(true),
-        Err(_) => Ok(false),
-    }
-}
-
-#[cfg(not(feature = "demo"))]
-fn connect_open_network_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn Error>> {
-    connect_via_networkmanager(open_network_connection_settings(&network.ssid))
-}
-
-#[cfg(not(feature = "demo"))]
-fn connect_psk_network_via_networkmanager(
-    network: &WifiNetwork,
-    password: &str,
-) -> Result<bool, Box<dyn Error>> {
-    connect_via_networkmanager(secured_network_connection_settings(
-        &network.ssid,
-        password,
-        "wpa-psk",
-    ))
-}
-
-#[cfg(not(feature = "demo"))]
-fn connect_sae_network_via_networkmanager(
-    network: &WifiNetwork,
-    password: &str,
-) -> Result<bool, Box<dyn Error>> {
-    connect_via_networkmanager(secured_network_connection_settings(
-        &network.ssid,
-        password,
-        "sae",
-    ))
+    Ok(())
 }
 
 #[cfg(feature = "demo")]
-pub async fn connect_to_network(
-    network: &WifiNetwork,
-    password: Option<&str>,
-) -> Result<(), Box<dyn Error>> {
-    demo_connect(network, password)
+pub async fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+    demo_connect(request)
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn connect_to_network(
-    network: &WifiNetwork,
-    password: Option<&str>,
-) -> Result<(), Box<dyn Error>> {
-    match classify_security(network, password) {
-        SecurityKind::Open => {
-            if connect_open_network_via_networkmanager(network)? {
-                Ok(())
-            } else {
-                Err("NetworkManager failed to activate open network".into())
+pub async fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+    let network = request.network();
+
+    match request {
+        ConnectionRequest::Open { .. } => {
+            if network.security != WifiSecurity::Open {
+                return Err("Password required for secured network".into());
+            }
+            connect_via_networkmanager(open_network_connection_settings(&network.ssid))
+        }
+        ConnectionRequest::Secured { password, .. } => {
+            match classify_security(network, Some(password)) {
+                SecurityKind::WpaPsk => connect_via_networkmanager(
+                    secured_network_connection_settings(&network.ssid, password, "wpa-psk"),
+                ),
+                SecurityKind::WpaSae => connect_via_networkmanager(
+                    secured_network_connection_settings(&network.ssid, password, "sae"),
+                ),
+                SecurityKind::Open => {
+                    Err("Open networks should not be activated with a password request".into())
+                }
+                SecurityKind::Unsupported => Err(format!(
+                    "Unsupported network security for NetworkManager activation: {}",
+                    network.security.display_name()
+                )
+                .into()),
             }
         }
-        SecurityKind::WpaPsk => {
-            let password = password.ok_or("Password required for secured network")?;
-            if connect_psk_network_via_networkmanager(network, password)? {
-                Ok(())
-            } else {
-                Err("NetworkManager failed to activate WPA/WPA2 Personal network".into())
-            }
-        }
-        SecurityKind::WpaSae => {
-            let password = password.ok_or("Password required for secured network")?;
-            if connect_sae_network_via_networkmanager(network, password)? {
-                Ok(())
-            } else {
-                Err("NetworkManager failed to activate WPA3 Personal network".into())
-            }
-        }
-        SecurityKind::Unsupported => Err(format!(
-            "Unsupported network security for NetworkManager activation: {}",
-            network.security.display_name()
-        )
-        .into()),
     }
 }
 
 #[cfg(not(feature = "demo"))]
 fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system()
-        .map_err(|_| "Failed to connect to D-Bus".to_string())?;
+        .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
     let nm = NetworkManager::new(&dbus);
 
     for device in nm
         .get_devices()
-        .map_err(|_| "Failed to get devices".to_string())?
+        .map_err(|error| contextual_error("Failed to list NetworkManager devices", error))?
     {
         if let Device::WiFi(wifi_device) = device {
             let active_ssid = wifi_device
@@ -495,9 +513,9 @@ fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn 
                 .and_then(|ap| ap.ssid().ok());
 
             if should_disconnect_device(active_ssid.as_deref(), &network.ssid) {
-                wifi_device
-                    .disconnect()
-                    .map_err(|_| "Failed to disconnect device via NetworkManager".to_string())?;
+                wifi_device.disconnect().map_err(|error| {
+                    contextual_error("Failed to disconnect device via NetworkManager", error)
+                })?;
                 return Ok(true);
             }
         }
@@ -536,14 +554,14 @@ mod tests {
         AP_SEC_KEY_MGMT_PSK,
         AP_SEC_KEY_MGMT_SAE,
         SecurityKind,
-        choose_wifi_adapter,
+        choose_wifi_adapter_name,
         classify_access_point_security,
         classify_security,
         scan_wait_duration,
         should_disconnect_device,
     };
     #[cfg(feature = "demo")]
-    use super::{connect_to_network, demo_networks, scan_wifi_networks};
+    use super::{ConnectionRequest, connect_to_network, demo_networks, scan_wifi_networks};
     use super::{open_network_connection_settings, secured_network_connection_settings};
     #[cfg(not(feature = "demo"))]
     use crate::types::WifiNetwork;
@@ -553,7 +571,7 @@ mod tests {
     #[test]
     fn adapter_selection_prefers_connected_wifi_interfaces() {
         assert_eq!(
-            choose_wifi_adapter(
+            choose_wifi_adapter_name(
                 Some("wlp2s0".to_string()),
                 vec!["wlan1".to_string(), "wlp2s0".to_string()]
             ),
@@ -565,7 +583,7 @@ mod tests {
     #[test]
     fn adapter_selection_falls_back_to_first_available_wifi_interface() {
         assert_eq!(
-            choose_wifi_adapter(None, vec!["wlan1".to_string(), "wlp2s0".to_string()]),
+            choose_wifi_adapter_name(None, vec!["wlan1".to_string(), "wlp2s0".to_string()]),
             Some("wlan1".to_string())
         );
     }
@@ -750,7 +768,11 @@ mod tests {
             .find(|network| network.ssid == "CatCat")
             .expect("demo network exists");
 
-        let result = connect_to_network(&network, Some("AcerolaAcai")).await;
+        let result = connect_to_network(ConnectionRequest::Secured {
+            network: &network,
+            password: "AcerolaAcai",
+        })
+        .await;
 
         assert!(result.is_ok());
     }
@@ -763,7 +785,11 @@ mod tests {
             .find(|network| network.ssid == "CatCat")
             .expect("demo network exists");
 
-        let result = connect_to_network(&network, Some("wrong-password")).await;
+        let result = connect_to_network(ConnectionRequest::Secured {
+            network: &network,
+            password: "wrong-password",
+        })
+        .await;
 
         assert_eq!(
             result.expect_err("demo connect should fail").to_string(),
