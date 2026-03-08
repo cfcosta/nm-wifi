@@ -67,6 +67,14 @@ pub(crate) fn should_disconnect_device(active_ssid: Option<&str>, target_ssid: &
     active_ssid == Some(target_ssid)
 }
 
+fn active_access_point_ssid(wifi_device: &impl Wireless) -> Option<String> {
+    wifi_device
+        .active_access_point()
+        .ok()
+        .and_then(|access_point| access_point.ssid().ok())
+        .filter(|ssid| !ssid.is_empty())
+}
+
 fn get_connected_ssid_via_nm() -> Result<Option<String>, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system()
         .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
@@ -76,17 +84,10 @@ fn get_connected_ssid_via_nm() -> Result<Option<String>, Box<dyn Error>> {
         .map_err(|error| contextual_error("Failed to list NetworkManager devices", error))?;
 
     for device in devices {
-        if let Device::WiFi(wifi_device) = device {
-            let access_point = match wifi_device.active_access_point() {
-                Ok(access_point) => access_point,
-                Err(_) => continue,
-            };
-            let ssid = access_point
-                .ssid()
-                .map_err(|error| contextual_error("Failed to read active WiFi SSID", error))?;
-            if !ssid.is_empty() {
-                return Ok(Some(ssid));
-            }
+        if let Device::WiFi(wifi_device) = device
+            && let Some(ssid) = active_access_point_ssid(&wifi_device)
+        {
+            return Ok(Some(ssid));
         }
     }
 
@@ -119,11 +120,7 @@ fn get_wifi_adapter_name_via_nm() -> Result<Option<String>, Box<dyn Error>> {
             let iface = wifi_device
                 .interface()
                 .map_err(|error| contextual_error("Failed to read WiFi interface name", error))?;
-            let is_connected = wifi_device
-                .active_access_point()
-                .ok()
-                .and_then(|ap| ap.ssid().ok())
-                .is_some_and(|ssid| !ssid.is_empty());
+            let is_connected = active_access_point_ssid(&wifi_device).is_some();
 
             if is_connected {
                 connected = Some(iface.clone());
@@ -337,10 +334,7 @@ fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn 
         .map_err(|error| contextual_error("Failed to list NetworkManager devices", error))?
     {
         if let Device::WiFi(wifi_device) = device {
-            let active_ssid = wifi_device
-                .active_access_point()
-                .ok()
-                .and_then(|ap| ap.ssid().ok());
+            let active_ssid = active_access_point_ssid(&wifi_device);
 
             if should_disconnect_device(active_ssid.as_deref(), &network.ssid) {
                 wifi_device.disconnect().map_err(|error| {
