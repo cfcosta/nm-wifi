@@ -29,7 +29,7 @@ pub fn format_signal_strength(strength: u8) -> String {
 pub fn keybindings_hint(state: &AppState) -> &'static str {
     match state {
         AppState::NetworkList => {
-            "h:Help | i:Info | r:Rescan | c/Enter:Connect | d:Disconnect | q:Quit"
+            "h:Help | i:Info | r:Rescan | c/Enter:Connect/Disconnect | d:Disconnect | q:Quit"
         }
         AppState::Help => "h/q/Esc:Back",
         AppState::NetworkDetails => "q/i/Esc:Back",
@@ -211,7 +211,7 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
         Line::from(vec![
             Span::styled("Enter/c", Style::default().fg(CatppuccinColors::GREEN)),
             Span::styled(
-                "     Connect to network",
+                "     Connect or disconnect selected network",
                 Style::default().fg(CatppuccinColors::TEXT),
             ),
         ]),
@@ -1375,6 +1375,14 @@ mod tests {
         assert_eq!(
             keybindings_hint(&AppState::ConnectionResult),
             "Enter:Continue | q/Esc:Quit"
+        );
+    }
+
+    #[test]
+    fn network_list_hint_matches_connect_and_disconnect_behavior() {
+        assert_eq!(
+            keybindings_hint(&AppState::NetworkList),
+            "h:Help | i:Info | r:Rescan | c/Enter:Connect/Disconnect | d:Disconnect | q:Quit"
         );
     }
 }
