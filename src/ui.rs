@@ -19,7 +19,11 @@ pub fn create_signal_graph(strength: u8) -> String {
 }
 
 pub fn get_frequency_band(frequency: u32) -> &'static str {
-    if frequency >= 5000 { "5G" } else { "2.4G" }
+    match frequency {
+        5925.. => "6G",
+        5000.. => "5G",
+        _ => "2.4G",
+    }
 }
 
 pub fn format_signal_strength(strength: u8) -> String {
@@ -1351,7 +1355,7 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 
 #[cfg(test)]
 mod tests {
-    use super::{keybindings_hint, operation_progress_hint};
+    use super::{get_frequency_band, keybindings_hint, operation_progress_hint};
     use crate::types::AppState;
 
     #[test]
@@ -1384,5 +1388,10 @@ mod tests {
             keybindings_hint(&AppState::NetworkList),
             "h:Help | i:Info | r:Rescan | c/Enter:Connect/Disconnect | d:Disconnect | q:Quit"
         );
+    }
+
+    #[test]
+    fn six_ghz_networks_are_labeled_correctly() {
+        assert_eq!(get_frequency_band(5975), "6G");
     }
 }
