@@ -7,9 +7,9 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{Terminal, backend::Backend};
 
 use crate::{
+    app_state::{App, AppState, OperationKind},
     backend::{NetworkBackend, default_backend},
     network::ConnectionRequest,
-    types::{App, AppState, OperationKind},
     ui::ui,
 };
 
@@ -273,7 +273,10 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     use super::{CleanupGuard, begin_disconnect_for_selected_network};
-    use crate::types::{App, AppState, WifiNetwork, WifiSecurity};
+    use crate::{
+        app_state::{App, AppState},
+        wifi::{WifiNetwork, WifiSecurity},
+    };
 
     fn network(ssid: &str, connected: bool) -> WifiNetwork {
         WifiNetwork {

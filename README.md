@@ -167,11 +167,19 @@ The project uses Rust nightly. The toolchain is specified in `rust-toolchain.tom
 
 ```
 src/
-├── main.rs      # Application entry point and event loop
-├── network.rs   # NetworkManager D-Bus interaction
-├── types.rs     # Data structures and app state
-├── ui.rs        # TUI rendering with ratatui
-└── theme.rs     # Catppuccin Mocha color definitions
+├── main.rs              # Terminal bootstrap
+├── app.rs               # Runtime controller and backend-driven flow helpers
+├── app_state.rs         # Application state machine and transitions
+├── backend.rs           # Shared network backend trait and factory
+├── network/
+│   ├── demo.rs          # Demo backend implementation
+│   └── networkmanager.rs# Real NetworkManager backend implementation
+├── network.rs           # Shared network request types and forwarding surface
+├── demo_screenshots.rs  # Screenshot rendering pipeline
+├── wifi.rs              # Wi-Fi domain models
+├── ui.rs                # TUI rendering with ratatui
+├── theme.rs             # Catppuccin Mocha color definitions
+└── types.rs             # Compatibility re-exports for App/Wi-Fi types
 ```
 
 ## Technical Details

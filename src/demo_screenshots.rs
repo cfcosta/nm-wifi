@@ -8,10 +8,11 @@ use ratatui::{
 };
 
 use crate::{
+    app_state::{App, AppState},
     backend::NetworkBackend,
     theme::CatppuccinColors,
-    types::{App, AppState, WifiNetwork, WifiSecurity},
     ui::ui,
+    wifi::{WifiNetwork, WifiSecurity},
 };
 
 pub const WIDTH: u16 = 120;

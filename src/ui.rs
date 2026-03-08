@@ -8,8 +8,9 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
+    app_state::{App, AppState},
     theme::CatppuccinColors,
-    types::{App, AppState, WifiNetwork},
+    wifi::WifiNetwork,
 };
 
 pub fn create_signal_graph(strength: u8) -> String {
@@ -801,7 +802,7 @@ mod tests {
     use unicode_width::UnicodeWidthStr;
 
     use super::{format_ssid_column, get_frequency_band, keybindings_hint};
-    use crate::types::AppState;
+    use crate::app_state::AppState;
 
     #[test]
     fn connecting_and_disconnecting_hints_show_only_quit_action() {

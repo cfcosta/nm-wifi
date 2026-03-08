@@ -6,9 +6,10 @@ use nm_wifi::{
         complete_disconnection_with_backend,
         refresh_networks_with_backend,
     },
+    app_state::{App, AppState},
     backend::{BackendFuture, NetworkBackend},
     network::ConnectionRequest,
-    types::{App, AppState, WifiNetwork, WifiSecurity},
+    wifi::{WifiNetwork, WifiSecurity},
 };
 
 #[derive(Clone, Default)]

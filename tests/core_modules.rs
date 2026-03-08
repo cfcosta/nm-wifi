@@ -1,6 +1,7 @@
 use nm_wifi::{
-    types::{App, AppState, WifiNetwork, WifiSecurity},
+    app_state::{App, AppState},
     ui::{format_ssid_column, get_frequency_band, keybindings_hint, ui},
+    wifi::{WifiNetwork, WifiSecurity},
 };
 use ratatui::{Terminal, backend::TestBackend};
 

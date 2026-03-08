@@ -1,6 +1,7 @@
 use nm_wifi::{
     app::{CleanupGuard, begin_disconnect_for_selected_network},
-    types::{App, AppState, WifiNetwork, WifiSecurity},
+    app_state::{App, AppState},
+    wifi::{WifiNetwork, WifiSecurity},
 };
 
 fn network(ssid: &str, connected: bool) -> WifiNetwork {
