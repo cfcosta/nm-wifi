@@ -47,27 +47,10 @@ pub fn begin_disconnect_for_selected_network(app: &mut App) {
     }
 }
 
-async fn handle_scanning_state(
+pub async fn refresh_networks_with_backend(
     backend: &dyn NetworkBackend,
     app: &mut App,
 ) -> Result<(), Box<dyn Error>> {
-    if event::poll(Duration::from_millis(100))? {
-        if let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-        {
-            match key.code {
-                KeyCode::Esc => app.quit(),
-                KeyCode::Char('j') | KeyCode::Down if !app.networks.is_empty() => app.next(),
-                KeyCode::Char('k') | KeyCode::Up if !app.networks.is_empty() => app.previous(),
-                KeyCode::Enter | KeyCode::Char('c') if !app.networks.is_empty() => {
-                    app.activate_selected_network()
-                }
-                _ => {}
-            }
-        }
-        return Ok(());
-    }
-
     let networks = match backend.scan_networks().await {
         Ok(networks) => networks,
         Err(error) => {
@@ -102,19 +85,10 @@ async fn handle_scanning_state(
     Ok(())
 }
 
-async fn handle_connection_state(
+pub fn complete_connection_with_backend(
     backend: &dyn NetworkBackend,
     app: &mut App,
 ) -> Result<(), Box<dyn Error>> {
-    if event::poll(Duration::from_millis(100))?
-        && let Event::Key(key) = event::read()?
-        && key.kind == KeyEventKind::Press
-        && key.code == KeyCode::Esc
-    {
-        app.quit();
-        return Ok(());
-    }
-
     let network = app.selected_network.as_ref().unwrap();
     let request = if network.security.is_secured() {
         ConnectionRequest::Secured {
@@ -132,6 +106,57 @@ async fn handle_connection_state(
     Ok(())
 }
 
+pub fn complete_disconnection_with_backend(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
+    match backend.disconnect(app.selected_network.as_ref().unwrap()) {
+        Ok(_) => app.finish_operation(true, None),
+        Err(error) => app.finish_operation(false, Some(error.to_string())),
+    }
+    Ok(())
+}
+
+async fn handle_scanning_state(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
+    if event::poll(Duration::from_millis(100))? {
+        if let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
+        {
+            match key.code {
+                KeyCode::Esc => app.quit(),
+                KeyCode::Char('j') | KeyCode::Down if !app.networks.is_empty() => app.next(),
+                KeyCode::Char('k') | KeyCode::Up if !app.networks.is_empty() => app.previous(),
+                KeyCode::Enter | KeyCode::Char('c') if !app.networks.is_empty() => {
+                    app.activate_selected_network()
+                }
+                _ => {}
+            }
+        }
+        return Ok(());
+    }
+
+    refresh_networks_with_backend(backend, app).await
+}
+
+async fn handle_connection_state(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
+    if event::poll(Duration::from_millis(100))?
+        && let Event::Key(key) = event::read()?
+        && key.kind == KeyEventKind::Press
+        && key.code == KeyCode::Esc
+    {
+        app.quit();
+        return Ok(());
+    }
+
+    complete_connection_with_backend(backend, app)
+}
+
 async fn handle_disconnection_state(
     backend: &dyn NetworkBackend,
     app: &mut App,
@@ -145,11 +170,7 @@ async fn handle_disconnection_state(
         return Ok(());
     }
 
-    match backend.disconnect(app.selected_network.as_ref().unwrap()) {
-        Ok(_) => app.finish_operation(true, None),
-        Err(error) => app.finish_operation(false, Some(error.to_string())),
-    }
-    Ok(())
+    complete_disconnection_with_backend(backend, app)
 }
 
 fn handle_keypress(app: &mut App, key: KeyCode) {
