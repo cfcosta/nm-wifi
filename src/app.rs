@@ -83,7 +83,7 @@ async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
     app.last_scan_time = Some(Instant::now());
 
     if app.adapter_name.is_none() {
-        app.adapter_name = get_wifi_adapter_name().await.ok().flatten();
+        app.adapter_name = get_wifi_adapter_name().ok().flatten();
     }
 
     if previous_count == 0 && !app.networks.is_empty() {
@@ -124,7 +124,7 @@ async fn handle_connection_state(app: &mut App) -> Result<(), Box<dyn Error>> {
         ConnectionRequest::Open { network }
     };
 
-    match connect_to_network(request).await {
+    match connect_to_network(request) {
         Ok(_) => app.finish_operation(true, None),
         Err(error) => app.finish_operation(false, Some(error.to_string())),
     }
@@ -141,7 +141,7 @@ async fn handle_disconnection_state(app: &mut App) -> Result<(), Box<dyn Error>>
         return Ok(());
     }
 
-    match disconnect_from_network(app.selected_network.as_ref().unwrap()).await {
+    match disconnect_from_network(app.selected_network.as_ref().unwrap()) {
         Ok(_) => app.finish_operation(true, None),
         Err(error) => app.finish_operation(false, Some(error.to_string())),
     }

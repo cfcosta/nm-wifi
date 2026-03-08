@@ -176,7 +176,7 @@ fn get_connected_ssid_via_nm() -> Result<Option<String>, Box<dyn Error>> {
 }
 
 #[cfg(feature = "demo")]
-pub async fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
+pub fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
     Ok(demo_networks()
         .into_iter()
         .find(|network| network.connected)
@@ -184,7 +184,7 @@ pub async fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
+pub fn get_connected_ssid() -> Result<Option<String>, Box<dyn Error>> {
     get_connected_ssid_via_nm()
 }
 
@@ -226,12 +226,12 @@ fn get_wifi_adapter_name_via_nm() -> Result<Option<String>, Box<dyn Error>> {
 }
 
 #[cfg(feature = "demo")]
-pub async fn get_wifi_adapter_name() -> Result<Option<String>, Box<dyn Error>> {
+pub fn get_wifi_adapter_name() -> Result<Option<String>, Box<dyn Error>> {
     Ok(Some("demo-wlan0".to_string()))
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn get_wifi_adapter_name() -> Result<Option<String>, Box<dyn Error>> {
+pub fn get_wifi_adapter_name() -> Result<Option<String>, Box<dyn Error>> {
     get_wifi_adapter_name_via_nm()
 }
 
@@ -255,7 +255,7 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
         .map_err(|error| contextual_error("Failed to connect to D-Bus", error))?;
     let nm = NetworkManager::new(&dbus);
 
-    let connected_ssid = get_connected_ssid().await?;
+    let connected_ssid = get_connected_ssid()?;
 
     let devices = nm
         .get_devices()
@@ -460,12 +460,12 @@ fn connect_via_networkmanager(
 }
 
 #[cfg(feature = "demo")]
-pub async fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+pub fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
     demo_connect(request)
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+pub fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
     let network = request.network();
 
     match request {
@@ -525,7 +525,7 @@ fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn 
 }
 
 #[cfg(feature = "demo")]
-pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+pub fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
     if network.connected {
         Ok(())
     } else {
@@ -534,7 +534,7 @@ pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dy
 }
 
 #[cfg(not(feature = "demo"))]
-pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+pub fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
     if disconnect_via_networkmanager(network)? {
         Ok(())
     } else {
@@ -761,8 +761,8 @@ mod tests {
     }
 
     #[cfg(feature = "demo")]
-    #[tokio::test]
-    async fn demo_connect_accepts_matching_passwords() {
+    #[test]
+    fn demo_connect_accepts_matching_passwords() {
         let network = demo_networks()
             .into_iter()
             .find(|network| network.ssid == "CatCat")
@@ -771,15 +771,14 @@ mod tests {
         let result = connect_to_network(ConnectionRequest::Secured {
             network: &network,
             password: "AcerolaAcai",
-        })
-        .await;
+        });
 
         assert!(result.is_ok());
     }
 
     #[cfg(feature = "demo")]
-    #[tokio::test]
-    async fn demo_connect_rejects_invalid_passwords() {
+    #[test]
+    fn demo_connect_rejects_invalid_passwords() {
         let network = demo_networks()
             .into_iter()
             .find(|network| network.ssid == "CatCat")
@@ -788,8 +787,7 @@ mod tests {
         let result = connect_to_network(ConnectionRequest::Secured {
             network: &network,
             password: "wrong-password",
-        })
-        .await;
+        });
 
         assert_eq!(
             result.expect_err("demo connect should fail").to_string(),

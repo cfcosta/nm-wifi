@@ -87,6 +87,5 @@ async fn demo_network_module_scans_and_connects_in_integration_tests() {
         network: &network,
         password: "AcerolaAcai",
     })
-    .await
     .expect("demo connect succeeds");
 }
