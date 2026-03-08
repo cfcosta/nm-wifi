@@ -73,6 +73,12 @@ pub struct App {
     pub password_visible: bool,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     fn set_selected_index(&mut self, index: usize) {
         self.selected_index = index;

@@ -5,6 +5,15 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A Terminal User Interface for managing Wi-Fi connections on Linux"
 
+[features]
+default = []
+demo = []
+
+[[bin]]
+name = "generate-demo-screenshots"
+path = "src/bin/generate_demo_screenshots.rs"
+required-features = ["demo"]
+
 [dependencies]
 networkmanager = "0.5"
 ratatui = "0.29"

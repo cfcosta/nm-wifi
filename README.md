@@ -5,13 +5,53 @@ A Terminal User Interface (TUI) for scanning and managing Wi-Fi connections on L
 ## Features
 
 - **Network Scanning**: Automatically scans and displays available Wi-Fi networks
-- **Connect/Disconnect**: Connect to open or secured (WPA/WPA2) networks with password support
+- **Connect/Disconnect**: Connect to open or secured (WPA/WPA2/WPA3 Personal) networks with password support
 - **Signal Visualization**: Graphical signal strength bars with color-coded quality indicators
-- **Frequency Band Display**: Shows 2.4GHz or 5GHz band for each network
+- **Frequency Band Display**: Shows 2.4GHz, 5GHz, or 6GHz band for each network
 - **Network Details**: View detailed information about selected networks
 - **Vim-style Navigation**: Use `j`/`k` keys for navigation alongside arrow keys
 - **Catppuccin Theme**: Beautiful Mocha color scheme for a pleasant terminal experience
 - **Real-time Updates**: Live status messages during scanning and connection
+- **Demo Mode**: Build with `--features demo` to run without NetworkManager or D-Bus
+- **Automated Screenshot Generation**: Produce feature screenshots for the README from the demo UI
+
+## Screenshots
+
+### Scanning
+
+![Scanning](docs/screenshots/scanning.svg)
+
+### Network list
+
+![Network list](docs/screenshots/network-list.svg)
+
+### Help
+
+![Help](docs/screenshots/help.svg)
+
+### Network details
+
+![Network details](docs/screenshots/details.svg)
+
+### Password prompt
+
+![Password prompt](docs/screenshots/password.svg)
+
+### Connecting
+
+![Connecting](docs/screenshots/connecting.svg)
+
+### Disconnecting
+
+![Disconnecting](docs/screenshots/disconnecting.svg)
+
+### Success result
+
+![Success result](docs/screenshots/result-success.svg)
+
+### Failure result
+
+![Failure result](docs/screenshots/result-error.svg)
 
 ## Requirements
 
@@ -60,6 +100,16 @@ nm-wifi
 
 The application will automatically start scanning for available networks.
 
+### Demo mode
+
+Run the application without touching NetworkManager:
+
+```bash
+cargo run --features demo
+```
+
+In demo mode, scanning, adapter info, connect, and disconnect operations are mocked so you can explore the full UI safely.
+
 ### Keybindings
 
 | Key | Action |
@@ -96,6 +146,16 @@ cargo build
 bacon run
 ```
 
+### Generate README screenshots
+
+The screenshots in this README are generated from the demo feature flag:
+
+```bash
+cargo run --features demo --bin generate-demo-screenshots
+```
+
+This command renders the TUI into SVG files under `docs/screenshots/`.
+
 ### Rust Toolchain
 
 The project uses Rust nightly. The toolchain is specified in `rust-toolchain.toml` and includes:
@@ -117,7 +177,7 @@ src/
 ## Technical Details
 
 - Uses the NetworkManager D-Bus API for network operations
-- Falls back to `nmcli` for connection management
+- `demo` feature flag swaps live NetworkManager calls for mocked responses
 - Async runtime powered by Tokio
 - Terminal UI built with ratatui and crossterm
 

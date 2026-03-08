@@ -1,20 +1,79 @@
-use std::{collections::HashMap, error::Error, time::Duration};
+#[cfg(not(feature = "demo"))]
+use std::time::Duration;
+use std::{collections::HashMap, error::Error};
 
 use dbus::arg::{PropMap, RefArg, Variant};
+#[cfg(not(feature = "demo"))]
 use networkmanager::{
     NetworkManager,
     devices::{Any, Device, Wireless},
 };
+#[cfg(not(feature = "demo"))]
 use tokio::time::sleep;
 
 use crate::types::{WifiNetwork, WifiSecurity};
 
+#[cfg(feature = "demo")]
+fn demo_networks() -> Vec<WifiNetwork> {
+    vec![
+        WifiNetwork {
+            ssid: "CatCat".to_string(),
+            signal_strength: 69,
+            security: WifiSecurity::WpaSae,
+            frequency: 5220,
+            connected: true,
+        },
+        WifiNetwork {
+            ssid: "VIVOFIBRA-5210-5G".to_string(),
+            signal_strength: 72,
+            security: WifiSecurity::WpaPsk,
+            frequency: 5200,
+            connected: false,
+        },
+        WifiNetwork {
+            ssid: "Coffee Corner".to_string(),
+            signal_strength: 54,
+            security: WifiSecurity::Open,
+            frequency: 2412,
+            connected: false,
+        },
+        WifiNetwork {
+            ssid: "Office Secure".to_string(),
+            signal_strength: 63,
+            security: WifiSecurity::Enterprise,
+            frequency: 5745,
+            connected: false,
+        },
+    ]
+}
+
+#[cfg(feature = "demo")]
+fn demo_connect(network: &WifiNetwork, password: Option<&str>) -> Result<(), Box<dyn Error>> {
+    match (network.ssid.as_str(), network.security, password) {
+        ("Coffee Corner", WifiSecurity::Open, _) => Ok(()),
+        ("VIVOFIBRA-5210-5G", WifiSecurity::WpaPsk, Some("hunter2")) => Ok(()),
+        ("CatCat", WifiSecurity::WpaSae, Some("AcerolaAcai")) => Ok(()),
+        (_, WifiSecurity::Enterprise, _) => {
+            Err("Demo mode: enterprise networks are not supported".into())
+        }
+        (_, WifiSecurity::Open, _) => Ok(()),
+        (_, _, Some(_)) => Err("Demo mode: invalid password".into()),
+        _ => Err("Demo mode: password required for secured network".into()),
+    }
+}
+
+#[cfg(not(feature = "demo"))]
 const AP_FLAGS_PRIVACY: u32 = 0x1;
+#[cfg(not(feature = "demo"))]
 const AP_SEC_KEY_MGMT_PSK: u32 = 0x100;
+#[cfg(not(feature = "demo"))]
 const AP_SEC_KEY_MGMT_8021X: u32 = 0x200;
+#[cfg(not(feature = "demo"))]
 const AP_SEC_KEY_MGMT_SAE: u32 = 0x400;
+#[cfg(not(feature = "demo"))]
 const AP_SEC_KEY_MGMT_OWE: u32 = 0x800;
 
+#[cfg(not(feature = "demo"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SecurityKind {
     Open,
@@ -23,6 +82,7 @@ enum SecurityKind {
     Unsupported,
 }
 
+#[cfg(not(feature = "demo"))]
 fn classify_access_point_security(flags: u32, wpa_flags: u32, rsn_flags: u32) -> WifiSecurity {
     let key_mgmt_flags = wpa_flags | rsn_flags;
 
@@ -39,6 +99,7 @@ fn classify_access_point_security(flags: u32, wpa_flags: u32, rsn_flags: u32) ->
     }
 }
 
+#[cfg(not(feature = "demo"))]
 fn classify_security(network: &WifiNetwork, password: Option<&str>) -> SecurityKind {
     match (network.security, password) {
         (WifiSecurity::Open, _) => SecurityKind::Open,
@@ -48,10 +109,12 @@ fn classify_security(network: &WifiNetwork, password: Option<&str>) -> SecurityK
     }
 }
 
+#[cfg(not(feature = "demo"))]
 fn should_disconnect_device(active_ssid: Option<&str>, target_ssid: &str) -> bool {
     active_ssid == Some(target_ssid)
 }
 
+#[cfg(not(feature = "demo"))]
 fn get_connected_ssid_via_nm() -> Option<String> {
     let dbus = dbus::blocking::Connection::new_system().ok()?;
     let nm = NetworkManager::new(&dbus);
@@ -69,14 +132,25 @@ fn get_connected_ssid_via_nm() -> Option<String> {
     None
 }
 
+#[cfg(feature = "demo")]
+pub async fn get_connected_ssid() -> Option<String> {
+    demo_networks()
+        .into_iter()
+        .find(|network| network.connected)
+        .map(|network| network.ssid)
+}
+
+#[cfg(not(feature = "demo"))]
 pub async fn get_connected_ssid() -> Option<String> {
     get_connected_ssid_via_nm()
 }
 
+#[cfg(not(feature = "demo"))]
 fn choose_wifi_adapter(connected: Option<String>, available: Vec<String>) -> Option<String> {
     connected.or_else(|| available.into_iter().next())
 }
 
+#[cfg(not(feature = "demo"))]
 fn get_wifi_adapter_info_via_nm() -> Option<String> {
     let dbus = dbus::blocking::Connection::new_system().ok()?;
     let nm = NetworkManager::new(&dbus);
@@ -102,10 +176,17 @@ fn get_wifi_adapter_info_via_nm() -> Option<String> {
     choose_wifi_adapter(connected, available)
 }
 
+#[cfg(feature = "demo")]
+pub async fn get_wifi_adapter_info() -> Option<String> {
+    Some("demo-wlan0".to_string())
+}
+
+#[cfg(not(feature = "demo"))]
 pub async fn get_wifi_adapter_info() -> Option<String> {
     get_wifi_adapter_info_via_nm()
 }
 
+#[cfg(not(feature = "demo"))]
 fn scan_wait_duration(last_scan_delta_ms: i64) -> Duration {
     if (0..15_000).contains(&last_scan_delta_ms) {
         Duration::from_millis(0)
@@ -114,6 +195,12 @@ fn scan_wait_duration(last_scan_delta_ms: i64) -> Duration {
     }
 }
 
+#[cfg(feature = "demo")]
+pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
+    Ok(demo_networks())
+}
+
+#[cfg(not(feature = "demo"))]
 pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system()
         .map_err(|_| "Failed to connect to D-Bus".to_string())?;
@@ -212,6 +299,7 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     Ok(Vec::new())
 }
 
+#[cfg(not(feature = "demo"))]
 fn nm_wifi_proxy(
     dbus: &dbus::blocking::Connection,
 ) -> dbus::blocking::Proxy<'_, &dbus::blocking::Connection> {
@@ -275,6 +363,7 @@ fn secured_network_connection_settings(
     settings
 }
 
+#[cfg(not(feature = "demo"))]
 fn connect_via_networkmanager(
     settings: HashMap<&'static str, PropMap>,
 ) -> Result<bool, Box<dyn Error>> {
@@ -308,10 +397,12 @@ fn connect_via_networkmanager(
     }
 }
 
+#[cfg(not(feature = "demo"))]
 fn connect_open_network_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn Error>> {
     connect_via_networkmanager(open_network_connection_settings(&network.ssid))
 }
 
+#[cfg(not(feature = "demo"))]
 fn connect_psk_network_via_networkmanager(
     network: &WifiNetwork,
     password: &str,
@@ -323,6 +414,7 @@ fn connect_psk_network_via_networkmanager(
     ))
 }
 
+#[cfg(not(feature = "demo"))]
 fn connect_sae_network_via_networkmanager(
     network: &WifiNetwork,
     password: &str,
@@ -334,6 +426,15 @@ fn connect_sae_network_via_networkmanager(
     ))
 }
 
+#[cfg(feature = "demo")]
+pub async fn connect_to_network(
+    network: &WifiNetwork,
+    password: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
+    demo_connect(network, password)
+}
+
+#[cfg(not(feature = "demo"))]
 pub async fn connect_to_network(
     network: &WifiNetwork,
     password: Option<&str>,
@@ -370,6 +471,7 @@ pub async fn connect_to_network(
     }
 }
 
+#[cfg(not(feature = "demo"))]
 fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system()
         .map_err(|_| "Failed to connect to D-Bus".to_string())?;
@@ -397,6 +499,16 @@ fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn 
     Ok(false)
 }
 
+#[cfg(feature = "demo")]
+pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+    if network.connected {
+        Ok(())
+    } else {
+        Err("Demo mode: selected network is not connected".into())
+    }
+}
+
+#[cfg(not(feature = "demo"))]
 pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
     if disconnect_via_networkmanager(network)? {
         Ok(())
@@ -407,8 +519,10 @@ pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dy
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "demo"))]
     use std::time::Duration;
 
+    #[cfg(not(feature = "demo"))]
     use super::{
         AP_FLAGS_PRIVACY,
         AP_SEC_KEY_MGMT_8021X,
@@ -418,13 +532,15 @@ mod tests {
         choose_wifi_adapter,
         classify_access_point_security,
         classify_security,
-        open_network_connection_settings,
         scan_wait_duration,
-        secured_network_connection_settings,
         should_disconnect_device,
     };
+    #[cfg(feature = "demo")]
+    use super::{connect_to_network, demo_networks, scan_wifi_networks};
+    use super::{open_network_connection_settings, secured_network_connection_settings};
     use crate::types::{WifiNetwork, WifiSecurity};
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn adapter_selection_prefers_connected_wifi_interfaces() {
         assert_eq!(
@@ -436,6 +552,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn adapter_selection_falls_back_to_first_available_wifi_interface() {
         assert_eq!(
@@ -444,6 +561,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn disconnect_matching_requires_the_selected_ssid() {
         assert!(should_disconnect_device(Some("home"), "home"));
@@ -461,6 +579,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn open_networks_are_classified_as_open() {
         assert_eq!(
@@ -469,6 +588,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn access_points_with_psk_flags_are_classified_as_wpa_personal() {
         assert_eq!(
@@ -477,6 +597,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn access_points_with_sae_flags_are_classified_as_wpa3_personal() {
         assert_eq!(
@@ -485,6 +606,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn enterprise_access_points_are_not_treated_as_personal_networks() {
         assert_eq!(
@@ -493,6 +615,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn privacy_without_supported_key_management_is_unsupported() {
         assert_eq!(
@@ -545,6 +668,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn psk_networks_are_classified_when_password_is_present() {
         assert_eq!(
@@ -553,6 +677,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn sae_networks_are_classified_when_password_is_present() {
         assert_eq!(
@@ -561,6 +686,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn enterprise_networks_remain_unsupported_even_with_a_password() {
         assert_eq!(
@@ -572,6 +698,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn unsupported_connect_cases_are_detected() {
         assert_eq!(
@@ -580,14 +707,57 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn recent_scans_do_not_force_an_extra_wait() {
         assert_eq!(scan_wait_duration(5_000), Duration::from_millis(0));
     }
 
+    #[cfg(not(feature = "demo"))]
     #[test]
     fn stale_scans_wait_longer_than_the_old_fixed_delay() {
         assert_eq!(scan_wait_duration(20_000), Duration::from_millis(750));
         assert_eq!(scan_wait_duration(-1), Duration::from_millis(750));
+    }
+
+    #[cfg(feature = "demo")]
+    #[tokio::test]
+    async fn demo_scan_returns_mock_networks() {
+        let networks = scan_wifi_networks().await.expect("demo scan works");
+        assert!(networks.iter().any(|network| network.ssid == "CatCat"));
+        assert!(
+            networks
+                .iter()
+                .any(|network| network.security == WifiSecurity::WpaSae)
+        );
+    }
+
+    #[cfg(feature = "demo")]
+    #[tokio::test]
+    async fn demo_connect_accepts_matching_passwords() {
+        let network = demo_networks()
+            .into_iter()
+            .find(|network| network.ssid == "CatCat")
+            .expect("demo network exists");
+
+        let result = connect_to_network(&network, Some("AcerolaAcai")).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[cfg(feature = "demo")]
+    #[tokio::test]
+    async fn demo_connect_rejects_invalid_passwords() {
+        let network = demo_networks()
+            .into_iter()
+            .find(|network| network.ssid == "CatCat")
+            .expect("demo network exists");
+
+        let result = connect_to_network(&network, Some("wrong-password")).await;
+
+        assert_eq!(
+            result.expect_err("demo connect should fail").to_string(),
+            "Demo mode: invalid password"
+        );
     }
 }

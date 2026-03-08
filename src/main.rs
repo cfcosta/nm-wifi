@@ -1,8 +1,3 @@
-mod network;
-mod theme;
-mod types;
-mod ui;
-
 use std::{
     error::Error,
     io,
@@ -14,18 +9,20 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use network::{
-    connect_to_network,
-    disconnect_from_network,
-    get_wifi_adapter_info,
-    scan_wifi_networks,
+use nm_wifi::{
+    network::{
+        connect_to_network,
+        disconnect_from_network,
+        get_wifi_adapter_info,
+        scan_wifi_networks,
+    },
+    types::{App, AppState, WifiSecurity},
+    ui::ui,
 };
 use ratatui::{
     Terminal,
     backend::{Backend, CrosstermBackend},
 };
-use types::{App, AppState, WifiSecurity};
-use ui::ui;
 
 struct CleanupGuard<F: FnOnce()> {
     cleanup: Option<F>,
@@ -319,8 +316,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
+    use nm_wifi::types::{App, AppState, WifiNetwork, WifiSecurity};
+
     use super::{CleanupGuard, begin_disconnect_for_selected_network};
-    use crate::types::{App, AppState, WifiNetwork, WifiSecurity};
 
     fn network(ssid: &str, connected: bool) -> WifiNetwork {
         WifiNetwork {
