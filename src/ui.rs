@@ -393,11 +393,6 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
     }
 }
 
-pub fn get_connection_animation_frame(elapsed_ms: u128) -> char {
-    let frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    frames[(elapsed_ms / 100) as usize % frames.len()]
-}
-
 pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
     if let Some(network) = &app.selected_network {
         let popup_area = centered_rect(64, 28, f.area());
@@ -494,15 +489,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
             shadow_area,
         );
 
-        let elapsed = app
-            .connection_start_time
-            .map(|start| start.elapsed().as_millis())
-            .unwrap_or(0);
-        let spinner = get_connection_animation_frame(elapsed);
-
         let connecting_text = vec![
-            Line::from(format!("Status: {}", spinner)),
-            Line::from(""),
             Line::from(format!("Network: {}", network.ssid)),
             Line::from(format!("Security: {}", network.security.display_name())),
             Line::from(format!(
@@ -550,21 +537,7 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
             shadow_area,
         );
 
-        let elapsed = app
-            .connection_start_time
-            .map(|start| start.elapsed().as_millis())
-            .unwrap_or(0);
-        let spinner = get_connection_animation_frame(elapsed);
-
         let disconnecting_text = vec![
-            Line::from(vec![
-                Span::styled("Status: ", Style::default().fg(CatppuccinColors::TEXT)),
-                Span::styled(
-                    spinner.to_string(),
-                    Style::default().fg(CatppuccinColors::PEACH),
-                ),
-            ]),
-            Line::from(""),
             Line::from(format!("Network: {}", network.ssid)),
             Line::from(format!("Security: {}", network.security.display_name())),
             Line::from("Disconnecting via NetworkManager..."),
@@ -605,41 +578,19 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
         shadow_area,
     );
 
-    let (title, color, summary) = if app.connection_success {
+    let (title, color) = if app.connection_success {
         if app.is_disconnect_operation {
-            (
-                "Disconnection complete",
-                CatppuccinColors::GREEN,
-                "Disconnected from network",
-            )
+            ("Disconnection complete", CatppuccinColors::GREEN)
         } else {
-            (
-                "Connection complete",
-                CatppuccinColors::GREEN,
-                "Connected to network",
-            )
+            ("Connection complete", CatppuccinColors::GREEN)
         }
     } else if app.is_disconnect_operation {
-        (
-            "Disconnection failed",
-            CatppuccinColors::RED,
-            "Could not disconnect from network",
-        )
+        ("Disconnection failed", CatppuccinColors::RED)
     } else {
-        (
-            "Connection failed",
-            CatppuccinColors::RED,
-            "Could not connect to network",
-        )
+        ("Connection failed", CatppuccinColors::RED)
     };
 
-    let mut result_text = vec![
-        Line::from(Span::styled(
-            summary,
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(""),
-    ];
+    let mut result_text = vec![];
 
     if let Some(network) = &app.selected_network {
         result_text.extend([
