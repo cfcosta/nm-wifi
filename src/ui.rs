@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     theme::CatppuccinColors,
@@ -28,6 +29,25 @@ pub fn get_frequency_band(frequency: u32) -> &'static str {
 
 pub fn format_signal_strength(strength: u8) -> String {
     format!("{}%", strength)
+}
+
+pub fn format_ssid_column(ssid: &str, width: usize) -> String {
+    let mut formatted = String::new();
+    let mut current_width = 0;
+
+    for ch in ssid.chars() {
+        let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if current_width + ch_width > width {
+            break;
+        }
+
+        formatted.push(ch);
+        current_width += ch_width;
+    }
+
+    let padding = width.saturating_sub(UnicodeWidthStr::width(formatted.as_str()));
+    formatted.push_str(&" ".repeat(padding));
+    formatted
 }
 
 pub fn keybindings_hint(state: &AppState) -> &'static str {
@@ -77,7 +97,7 @@ pub fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
             Style::default().fg(CatppuccinColors::MAUVE),
         ),
         Span::styled(
-            format!("{:<24}", network.ssid),
+            format_ssid_column(&network.ssid, 24),
             Style::default().fg(ssid_color),
         ),
         Span::styled(
@@ -1355,7 +1375,9 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_frequency_band, keybindings_hint, operation_progress_hint};
+    use unicode_width::UnicodeWidthStr;
+
+    use super::{format_ssid_column, get_frequency_band, keybindings_hint, operation_progress_hint};
     use crate::types::AppState;
 
     #[test]
@@ -1393,5 +1415,11 @@ mod tests {
     #[test]
     fn six_ghz_networks_are_labeled_correctly() {
         assert_eq!(get_frequency_band(5975), "6G");
+    }
+
+    #[test]
+    fn ssid_column_uses_terminal_display_width() {
+        let formatted = format_ssid_column("網😊", 6);
+        assert_eq!(UnicodeWidthStr::width(formatted.as_str()), 6);
     }
 }
