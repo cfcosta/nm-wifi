@@ -107,8 +107,8 @@ impl App {
         match &network {
             Some(network) if network.connected => {
                 self.state = AppState::Disconnecting;
-                self.status_message =
-                    format!("Disconnecting from {}...", network.ssid);
+                self.connection_start_time = Some(Instant::now());
+                self.status_message = format!("Disconnecting from {}...", network.ssid);
             }
             Some(network) if network.secured => {
                 self.state = AppState::PasswordInput;
@@ -117,8 +117,7 @@ impl App {
             Some(network) => {
                 self.state = AppState::Connecting;
                 self.connection_start_time = Some(Instant::now());
-                self.status_message =
-                    format!("Connecting to {}...", network.ssid);
+                self.status_message = format!("Connecting to {}...", network.ssid);
             }
             None => {}
         }
@@ -175,5 +174,32 @@ impl App {
             }
         }
         self.selected_network = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{App, AppState, WifiNetwork};
+
+    fn connected_network(ssid: &str) -> WifiNetwork {
+        WifiNetwork {
+            ssid: ssid.to_string(),
+            signal_strength: 80,
+            secured: true,
+            frequency: 5180,
+            connected: true,
+        }
+    }
+
+    #[test]
+    fn selecting_a_connected_network_starts_disconnect_timing() {
+        let mut app = App::new();
+        app.state = AppState::NetworkList;
+        app.networks = vec![connected_network("home")];
+
+        app.select_network();
+
+        assert!(matches!(app.state, AppState::Disconnecting));
+        assert!(app.connection_start_time.is_some());
     }
 }
