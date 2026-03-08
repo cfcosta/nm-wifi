@@ -7,20 +7,44 @@ use networkmanager::{
 };
 use tokio::time::sleep;
 
-use crate::types::WifiNetwork;
+use crate::types::{WifiNetwork, WifiSecurity};
+
+const AP_FLAGS_PRIVACY: u32 = 0x1;
+const AP_SEC_KEY_MGMT_PSK: u32 = 0x100;
+const AP_SEC_KEY_MGMT_8021X: u32 = 0x200;
+const AP_SEC_KEY_MGMT_SAE: u32 = 0x400;
+const AP_SEC_KEY_MGMT_OWE: u32 = 0x800;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SecurityKind {
     Open,
     WpaPsk,
+    WpaSae,
     Unsupported,
 }
 
+fn classify_access_point_security(flags: u32, wpa_flags: u32, rsn_flags: u32) -> WifiSecurity {
+    let key_mgmt_flags = wpa_flags | rsn_flags;
+
+    if key_mgmt_flags & AP_SEC_KEY_MGMT_SAE != 0 {
+        WifiSecurity::WpaSae
+    } else if key_mgmt_flags & AP_SEC_KEY_MGMT_PSK != 0 {
+        WifiSecurity::WpaPsk
+    } else if key_mgmt_flags & AP_SEC_KEY_MGMT_8021X != 0 {
+        WifiSecurity::Enterprise
+    } else if key_mgmt_flags & AP_SEC_KEY_MGMT_OWE != 0 || flags & AP_FLAGS_PRIVACY != 0 {
+        WifiSecurity::Unsupported
+    } else {
+        WifiSecurity::Open
+    }
+}
+
 fn classify_security(network: &WifiNetwork, password: Option<&str>) -> SecurityKind {
-    match (network.secured, password) {
-        (false, _) => SecurityKind::Open,
-        (true, Some(_)) => SecurityKind::WpaPsk,
-        (true, None) => SecurityKind::Unsupported,
+    match (network.security, password) {
+        (WifiSecurity::Open, _) => SecurityKind::Open,
+        (WifiSecurity::WpaPsk, Some(_)) => SecurityKind::WpaPsk,
+        (WifiSecurity::WpaSae, Some(_)) => SecurityKind::WpaSae,
+        _ => SecurityKind::Unsupported,
     }
 }
 
@@ -61,7 +85,7 @@ fn get_wifi_adapter_info_via_nm() -> Option<String> {
 
     for device in nm.get_devices().ok()? {
         if let Device::WiFi(wifi_device) = device {
-            let iface = wifi_device.ip_interface().ok()?;
+            let iface = wifi_device.interface().ok()?;
             let is_connected = wifi_device
                 .active_access_point()
                 .ok()
@@ -134,7 +158,7 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
                         .rsn_flags()
                         .map_err(|_| "Failed to get RSN flags".to_string())?;
 
-                    let secured = rsn_flags != 0 || wpa_flags != 0 || (flags & 0x1) != 0;
+                    let security = classify_access_point_security(flags, wpa_flags, rsn_flags);
 
                     let signal_strength = ap
                         .strength()
@@ -149,7 +173,7 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
                     let network = WifiNetwork {
                         ssid,
                         signal_strength,
-                        secured,
+                        security,
                         frequency,
                         connected,
                     };
@@ -229,11 +253,15 @@ fn open_network_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap
     base_connection_settings(ssid)
 }
 
-fn secured_network_connection_settings(ssid: &str, password: &str) -> HashMap<&'static str, PropMap> {
+fn secured_network_connection_settings(
+    ssid: &str,
+    password: &str,
+    key_mgmt: &str,
+) -> HashMap<&'static str, PropMap> {
     let mut settings = base_connection_settings(ssid);
 
     let mut wireless_security = PropMap::new();
-    wireless_security.insert("key-mgmt".to_string(), variant("wpa-psk".to_string()));
+    wireless_security.insert("key-mgmt".to_string(), variant(key_mgmt.to_string()));
     wireless_security.insert("psk".to_string(), variant(password.to_string()));
 
     if let Some(wireless) = settings.get_mut("802-11-wireless") {
@@ -288,7 +316,22 @@ fn connect_psk_network_via_networkmanager(
     network: &WifiNetwork,
     password: &str,
 ) -> Result<bool, Box<dyn Error>> {
-    connect_via_networkmanager(secured_network_connection_settings(&network.ssid, password))
+    connect_via_networkmanager(secured_network_connection_settings(
+        &network.ssid,
+        password,
+        "wpa-psk",
+    ))
+}
+
+fn connect_sae_network_via_networkmanager(
+    network: &WifiNetwork,
+    password: &str,
+) -> Result<bool, Box<dyn Error>> {
+    connect_via_networkmanager(secured_network_connection_settings(
+        &network.ssid,
+        password,
+        "sae",
+    ))
 }
 
 pub async fn connect_to_network(
@@ -308,12 +351,22 @@ pub async fn connect_to_network(
             if connect_psk_network_via_networkmanager(network, password)? {
                 Ok(())
             } else {
-                Err("NetworkManager failed to activate WPA-PSK network".into())
+                Err("NetworkManager failed to activate WPA/WPA2 Personal network".into())
             }
         }
-        SecurityKind::Unsupported => {
-            Err("Unsupported network security for NetworkManager activation".into())
+        SecurityKind::WpaSae => {
+            let password = password.ok_or("Password required for secured network")?;
+            if connect_sae_network_via_networkmanager(network, password)? {
+                Ok(())
+            } else {
+                Err("NetworkManager failed to activate WPA3 Personal network".into())
+            }
         }
+        SecurityKind::Unsupported => Err(format!(
+            "Unsupported network security for NetworkManager activation: {}",
+            network.security.display_name()
+        )
+        .into()),
     }
 }
 
@@ -357,15 +410,20 @@ mod tests {
     use std::time::Duration;
 
     use super::{
+        AP_FLAGS_PRIVACY,
+        AP_SEC_KEY_MGMT_8021X,
+        AP_SEC_KEY_MGMT_PSK,
+        AP_SEC_KEY_MGMT_SAE,
         SecurityKind,
         choose_wifi_adapter,
+        classify_access_point_security,
         classify_security,
         open_network_connection_settings,
         scan_wait_duration,
         secured_network_connection_settings,
         should_disconnect_device,
     };
-    use crate::types::WifiNetwork;
+    use crate::types::{WifiNetwork, WifiSecurity};
 
     #[test]
     fn adapter_selection_prefers_connected_wifi_interfaces() {
@@ -393,17 +451,54 @@ mod tests {
         assert!(!should_disconnect_device(None, "home"));
     }
 
-    #[test]
-    fn open_networks_are_classified_as_open() {
-        let network = WifiNetwork {
-            ssid: "cafe".to_string(),
+    fn network(security: WifiSecurity) -> WifiNetwork {
+        WifiNetwork {
+            ssid: "test".to_string(),
             signal_strength: 60,
-            secured: false,
+            security,
             frequency: 2412,
             connected: false,
-        };
+        }
+    }
 
-        assert_eq!(classify_security(&network, None), SecurityKind::Open);
+    #[test]
+    fn open_networks_are_classified_as_open() {
+        assert_eq!(
+            classify_security(&network(WifiSecurity::Open), None),
+            SecurityKind::Open
+        );
+    }
+
+    #[test]
+    fn access_points_with_psk_flags_are_classified_as_wpa_personal() {
+        assert_eq!(
+            classify_access_point_security(0, 0, AP_SEC_KEY_MGMT_PSK),
+            WifiSecurity::WpaPsk
+        );
+    }
+
+    #[test]
+    fn access_points_with_sae_flags_are_classified_as_wpa3_personal() {
+        assert_eq!(
+            classify_access_point_security(0, 0, AP_SEC_KEY_MGMT_SAE),
+            WifiSecurity::WpaSae
+        );
+    }
+
+    #[test]
+    fn enterprise_access_points_are_not_treated_as_personal_networks() {
+        assert_eq!(
+            classify_access_point_security(0, 0, AP_SEC_KEY_MGMT_8021X),
+            WifiSecurity::Enterprise
+        );
+    }
+
+    #[test]
+    fn privacy_without_supported_key_management_is_unsupported() {
+        assert_eq!(
+            classify_access_point_security(AP_FLAGS_PRIVACY, 0, 0),
+            WifiSecurity::Unsupported
+        );
     }
 
     #[test]
@@ -418,7 +513,7 @@ mod tests {
 
     #[test]
     fn psk_network_settings_include_wireless_security() {
-        let settings = secured_network_connection_settings("home", "hunter2");
+        let settings = secured_network_connection_settings("home", "hunter2", "wpa-psk");
 
         assert!(settings.contains_key("802-11-wireless-security"));
         assert_eq!(
@@ -428,35 +523,61 @@ mod tests {
                 .and_then(|value| value.0.as_str()),
             Some("802-11-wireless-security")
         );
+        assert_eq!(
+            settings
+                .get("802-11-wireless-security")
+                .and_then(|security| security.get("key-mgmt"))
+                .and_then(|value| value.0.as_str()),
+            Some("wpa-psk")
+        );
+    }
+
+    #[test]
+    fn sae_network_settings_use_sae_key_management() {
+        let settings = secured_network_connection_settings("home", "hunter2", "sae");
+
+        assert_eq!(
+            settings
+                .get("802-11-wireless-security")
+                .and_then(|security| security.get("key-mgmt"))
+                .and_then(|value| value.0.as_str()),
+            Some("sae")
+        );
     }
 
     #[test]
     fn psk_networks_are_classified_when_password_is_present() {
-        let network = WifiNetwork {
-            ssid: "home".to_string(),
-            signal_strength: 80,
-            secured: true,
-            frequency: 5180,
-            connected: false,
-        };
-
         assert_eq!(
-            classify_security(&network, Some("hunter2")),
+            classify_security(&network(WifiSecurity::WpaPsk), Some("hunter2")),
             SecurityKind::WpaPsk
         );
     }
 
     #[test]
-    fn unsupported_connect_cases_are_detected() {
-        let network = WifiNetwork {
-            ssid: "corp".to_string(),
-            signal_strength: 70,
-            secured: true,
-            frequency: 5200,
-            connected: false,
-        };
+    fn sae_networks_are_classified_when_password_is_present() {
+        assert_eq!(
+            classify_security(&network(WifiSecurity::WpaSae), Some("hunter2")),
+            SecurityKind::WpaSae
+        );
+    }
 
-        assert_eq!(classify_security(&network, None), SecurityKind::Unsupported);
+    #[test]
+    fn enterprise_networks_remain_unsupported_even_with_a_password() {
+        assert_eq!(
+            classify_security(
+                &network(WifiSecurity::Enterprise),
+                Some("correcthorsebatterystaple")
+            ),
+            SecurityKind::Unsupported
+        );
+    }
+
+    #[test]
+    fn unsupported_connect_cases_are_detected() {
+        assert_eq!(
+            classify_security(&network(WifiSecurity::Unsupported), None),
+            SecurityKind::Unsupported
+        );
     }
 
     #[test]

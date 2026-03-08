@@ -24,7 +24,7 @@ use ratatui::{
     Terminal,
     backend::{Backend, CrosstermBackend},
 };
-use types::{App, AppState};
+use types::{App, AppState, WifiSecurity};
 use ui::ui;
 
 struct CleanupGuard<F: FnOnce()> {
@@ -156,7 +156,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                 continue;
             }
 
-            let password = if app.selected_network.as_ref().unwrap().secured {
+            let password = if app.selected_network.as_ref().unwrap().security != WifiSecurity::Open {
                 Some(app.password_input.as_str())
             } else {
                 None
@@ -320,13 +320,13 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     use super::{CleanupGuard, begin_disconnect_for_selected_network};
-    use crate::types::{App, AppState, WifiNetwork};
+    use crate::types::{App, AppState, WifiNetwork, WifiSecurity};
 
     fn network(ssid: &str, connected: bool) -> WifiNetwork {
         WifiNetwork {
             ssid: ssid.to_string(),
             signal_strength: 80,
-            secured: true,
+            security: WifiSecurity::WpaPsk,
             frequency: 5180,
             connected,
         }

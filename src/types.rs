@@ -2,13 +2,44 @@ use std::time::Instant;
 
 use ratatui::widgets::ListState;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiSecurity {
+    Open,
+    WpaPsk,
+    WpaSae,
+    Enterprise,
+    Unsupported,
+}
+
+impl WifiSecurity {
+    pub fn is_secured(self) -> bool {
+        !matches!(self, Self::Open)
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Open => "Open",
+            Self::WpaPsk => "WPA/WPA2 Personal",
+            Self::WpaSae => "WPA3 Personal",
+            Self::Enterprise => "Enterprise (802.1X)",
+            Self::Unsupported => "Unsupported secured network",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct WifiNetwork {
     pub ssid: String,
     pub signal_strength: u8,
-    pub secured: bool,
+    pub security: WifiSecurity,
     pub frequency: u32,
     pub connected: bool,
+}
+
+impl WifiNetwork {
+    pub fn is_secured(&self) -> bool {
+        self.security.is_secured()
+    }
 }
 
 #[derive(PartialEq)]
@@ -117,7 +148,7 @@ impl App {
                 self.connection_start_time = Some(Instant::now());
                 self.status_message = format!("Disconnecting from {}...", network.ssid);
             }
-            Some(network) if network.secured => {
+            Some(network) if network.is_secured() => {
                 self.state = AppState::PasswordInput;
                 self.password_input.clear();
             }
@@ -202,20 +233,20 @@ impl App {
 mod tests {
     use std::time::Instant;
 
-    use super::{App, AppState, WifiNetwork};
+    use super::{App, AppState, WifiNetwork, WifiSecurity};
 
-    fn network(ssid: &str, secured: bool, connected: bool) -> WifiNetwork {
+    fn network(ssid: &str, security: WifiSecurity, connected: bool) -> WifiNetwork {
         WifiNetwork {
             ssid: ssid.to_string(),
             signal_strength: 80,
-            secured,
+            security,
             frequency: 5180,
             connected,
         }
     }
 
     fn connected_network(ssid: &str) -> WifiNetwork {
-        network(ssid, true, true)
+        network(ssid, WifiSecurity::WpaPsk, true)
     }
 
     #[test]
@@ -261,8 +292,8 @@ mod tests {
         let mut app = App::new();
         app.state = AppState::NetworkList;
         app.networks = vec![
-            network("cafe", false, false),
-            network("office", true, false),
+            network("cafe", WifiSecurity::Open, false),
+            network("office", WifiSecurity::WpaPsk, false),
         ];
         app.selected_index = 1;
         app.list_state.select(Some(1));

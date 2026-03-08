@@ -72,7 +72,7 @@ pub fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
     let signal_graph = create_signal_graph(network.signal_strength);
     let signal_percent = format_signal_strength(network.signal_strength);
     let frequency_band = get_frequency_band(network.frequency);
-    let security_icon = if network.secured { "🔒" } else { "  " };
+    let security_icon = if network.is_secured() { "🔒" } else { "  " };
     let connection_icon = if network.connected { "🔗" } else { "  " };
 
     let signal_color = match network.signal_strength {
@@ -335,11 +335,7 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
         let popup_area = centered_rect(60, 70, f.area());
         f.render_widget(Clear, popup_area);
 
-        let security_type = if network.secured {
-            "Secured (WPA/WPA2)"
-        } else {
-            "Open"
-        };
+        let security_type = network.security.display_name();
 
         let signal_description = match network.signal_strength {
             80..=100 => "Excellent",
@@ -495,10 +491,10 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             shadow_area,
         );
 
-        let security_type = if network.secured {
-            "🔒 WPA/WPA2"
+        let security_type = if network.is_secured() {
+            format!("🔒 {}", network.security.display_name())
         } else {
-            "🔓 Open"
+            "🔓 Open".to_string()
         };
         let signal_strength = format!("📶 {}%", network.signal_strength);
         let frequency_band = format!("📡 {}", get_frequency_band(network.frequency));
@@ -1022,10 +1018,10 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
                     Style::default().fg(CatppuccinColors::SUBTEXT1),
                 ),
                 Span::styled(
-                    if network.secured {
-                        "🔒 Secured"
+                    if network.is_secured() {
+                        network.security.display_name()
                     } else {
-                        "🔓 Open"
+                        "Open"
                     },
                     Style::default().fg(CatppuccinColors::TEXT),
                 ),
