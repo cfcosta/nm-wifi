@@ -53,14 +53,14 @@ pub fn format_ssid_column(ssid: &str, width: usize) -> String {
 pub fn keybindings_hint(state: &AppState) -> &'static str {
     match state {
         AppState::NetworkList => {
-            "h:Help | i:Info | r:Rescan | c/Enter:Connect/Disconnect | d:Disconnect | q:Quit"
+            "↑↓/jk Move  Enter Connect  d Disconnect  r Rescan  i Info  h Help  q Quit"
         }
-        AppState::Help => "h/q/Esc:Back",
-        AppState::NetworkDetails => "q/i/Esc:Back",
-        AppState::PasswordInput => "Enter:Connect | Esc:Cancel",
-        AppState::Connecting | AppState::Disconnecting => "Operation in progress",
-        AppState::Scanning => "Scanning... | Esc:Quit",
-        AppState::ConnectionResult => "Enter:Continue | q/Esc:Quit",
+        AppState::Help => "h/q/Esc Back",
+        AppState::NetworkDetails => "q/i/Esc Back",
+        AppState::PasswordInput => "Enter Connect  Tab Show/Hide  Esc Cancel",
+        AppState::Connecting | AppState::Disconnecting => "Esc Quit",
+        AppState::Scanning => "Scanning  Esc Quit",
+        AppState::ConnectionResult => "Enter Return  q/Esc Quit",
     }
 }
 
@@ -466,10 +466,9 @@ pub fn get_connection_animation_frame(elapsed_ms: u128) -> char {
 
 pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
     if let Some(network) = &app.selected_network {
-        let popup_area = centered_rect(70, 40, f.area());
+        let popup_area = centered_rect(64, 28, f.area());
         f.render_widget(Clear, popup_area);
 
-        // Create border with shadow effect
         let shadow_area = Rect {
             x: popup_area.x + 1,
             y: popup_area.y + 1,
@@ -481,14 +480,6 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             shadow_area,
         );
 
-        let security_type = if network.is_secured() {
-            format!("🔒 {}", network.security.display_name())
-        } else {
-            "🔓 Open".to_string()
-        };
-        let signal_strength = format!("📶 {}%", network.signal_strength);
-        let frequency_band = format!("📡 {}", get_frequency_band(network.frequency));
-
         let password_display = if app.password_visible {
             app.password_input.clone()
         } else {
@@ -497,62 +488,17 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
         let password_field = format!("{:<38}", password_display);
 
         let password_text = vec![
-            Line::from(vec![
-                Span::styled("🔗 ", Style::default().fg(CatppuccinColors::BLUE)),
-                Span::styled(
-                    "Connect to Network",
-                    Style::default()
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(
-                    "Network: ",
-                    Style::default()
-                        .fg(CatppuccinColors::MAUVE)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
-            ]),
-            Line::from(vec![
-                Span::styled(
-                    "Security: ",
-                    Style::default()
-                        .fg(CatppuccinColors::MAUVE)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(security_type, Style::default().fg(CatppuccinColors::YELLOW)),
-            ]),
-            Line::from(vec![
-                Span::styled(
-                    "Signal: ",
-                    Style::default()
-                        .fg(CatppuccinColors::MAUVE)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    &signal_strength,
-                    Style::default().fg(match network.signal_strength {
-                        80..=100 => CatppuccinColors::GREEN,
-                        60..=79 => CatppuccinColors::YELLOW,
-                        40..=59 => CatppuccinColors::PEACH,
-                        _ => CatppuccinColors::RED,
-                    }),
-                ),
-                Span::styled("  ", Style::default()),
-                Span::styled(
-                    &frequency_band,
-                    Style::default().fg(CatppuccinColors::SAPPHIRE),
-                ),
-            ]),
-            Line::from(vec![Span::styled(
-                "Password: ",
+            Line::from(Span::styled(
+                "Enter password",
                 Style::default()
-                    .fg(CatppuccinColors::MAUVE)
+                    .fg(CatppuccinColors::TEXT)
                     .add_modifier(Modifier::BOLD),
-            )]),
+            )),
+            Line::from(""),
+            Line::from(format!("Network: {}", network.ssid)),
+            Line::from(format!("Security: {}", network.security.display_name())),
+            Line::from(""),
+            Line::from("Password:"),
             Line::from(""),
             Line::from(vec![
                 Span::styled("┌", Style::default().fg(CatppuccinColors::SURFACE2)),
@@ -581,64 +527,16 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
                 Span::styled("┘", Style::default().fg(CatppuccinColors::SURFACE2)),
             ]),
             Line::from(""),
-            Line::from(""),
-            Line::from(vec![Span::styled(
-                "💡 Tips:",
-                Style::default()
-                    .fg(CatppuccinColors::YELLOW)
-                    .add_modifier(Modifier::BOLD),
-            )]),
-            Line::from(vec![Span::styled(
-                "  • Type your WiFi password",
-                Style::default().fg(CatppuccinColors::SUBTEXT1),
-            )]),
-            Line::from(vec![
-                Span::styled(
-                    "  • Press ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-                Span::styled(
-                    "Tab",
-                    Style::default()
-                        .fg(CatppuccinColors::GREEN)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " to toggle password visibility",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Press ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
-                Span::styled(
-                    "Enter",
-                    Style::default()
-                        .fg(CatppuccinColors::GREEN)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " to connect or ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-                Span::styled(
-                    "Esc",
-                    Style::default()
-                        .fg(CatppuccinColors::RED)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " to cancel",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-            ]),
+            Line::from("Enter: connect"),
+            Line::from("Tab: show or hide password"),
+            Line::from("Esc: cancel"),
         ];
 
         let password_modal = Paragraph::new(password_text)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("🔑 Enter Network Password")
+                    .title("Password")
                     .title_style(
                         Style::default()
                             .fg(CatppuccinColors::BLUE)
@@ -1113,22 +1011,16 @@ mod tests {
     use crate::types::AppState;
 
     #[test]
-    fn connecting_and_disconnecting_hints_do_not_claim_cancellation() {
-        assert_eq!(
-            keybindings_hint(&AppState::Connecting),
-            "Operation in progress"
-        );
-        assert_eq!(
-            keybindings_hint(&AppState::Disconnecting),
-            "Operation in progress"
-        );
+    fn connecting_and_disconnecting_hints_show_only_quit_action() {
+        assert_eq!(keybindings_hint(&AppState::Connecting), "Esc Quit");
+        assert_eq!(keybindings_hint(&AppState::Disconnecting), "Esc Quit");
     }
 
     #[test]
     fn connection_result_hint_matches_available_actions() {
         assert_eq!(
             keybindings_hint(&AppState::ConnectionResult),
-            "Enter:Continue | q/Esc:Quit"
+            "Enter Return  q/Esc Quit"
         );
     }
 
@@ -1136,7 +1028,7 @@ mod tests {
     fn network_list_hint_matches_connect_and_disconnect_behavior() {
         assert_eq!(
             keybindings_hint(&AppState::NetworkList),
-            "h:Help | i:Info | r:Rescan | c/Enter:Connect/Disconnect | d:Disconnect | q:Quit"
+            "↑↓/jk Move  Enter Connect  d Disconnect  r Rescan  i Info  h Help  q Quit"
         );
     }
 
