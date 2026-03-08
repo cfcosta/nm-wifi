@@ -169,6 +169,13 @@ impl App {
         self.list_state.select(Some(0));
     }
 
+    pub fn handle_scan_error(&mut self, error: impl std::fmt::Display) {
+        self.state = AppState::NetworkList;
+        self.network_count = self.networks.len();
+        self.last_scan_time = None;
+        self.status_message = format!("Scan failed: {}. Press r to retry.", error);
+    }
+
     pub fn update_selection_after_rescan(&mut self) {
         if let Some(selected_network) = &self.selected_network {
             if let Some(new_index) = self
@@ -233,5 +240,19 @@ mod tests {
         assert!(app.last_scan_time.is_none());
         assert_eq!(app.selected_index, 0);
         assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn scan_failures_keep_the_app_running_with_a_retry_message() {
+        let mut app = App::new();
+        app.state = AppState::Scanning;
+
+        app.handle_scan_error("dbus unavailable");
+
+        assert!(matches!(app.state, AppState::NetworkList));
+        assert_eq!(
+            app.status_message,
+            "Scan failed: dbus unavailable. Press r to retry."
+        );
     }
 }

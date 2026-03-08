@@ -94,7 +94,13 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
             }
 
             // Perform incremental scan
-            let networks = scan_wifi_networks().await?;
+            let networks = match scan_wifi_networks().await {
+                Ok(networks) => networks,
+                Err(error) => {
+                    app.handle_scan_error(error);
+                    continue;
+                }
+            };
             let previous_count = app.networks.len();
             app.networks = networks;
             app.network_count = app.networks.len();
