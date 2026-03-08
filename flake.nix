@@ -1,7 +1,6 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -18,97 +17,122 @@
 
   outputs =
     {
-      nixpkgs,
-      flake-utils,
       pre-commit-hooks,
       rust-overlay,
       treefmt-nix,
       ...
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ (import rust-overlay) ];
-        };
-        inherit (pkgs) mkShell;
+    }@inputs:
+    let
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
 
-        rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-
-        rustPlatform = pkgs.makeRustPlatform {
-          rustc = rust;
-          cargo = rust;
-        };
-
-        formatter =
-          (treefmt-nix.lib.evalModule pkgs {
-            projectRootFile = "flake.nix";
-
-            settings = {
-              allow-missing-formatter = true;
-              verbose = 0;
-
-              global.excludes = [ "*.lock" ];
-
-              formatter = {
-                nixfmt.options = [ "--strict" ];
-                rustfmt.package = rust;
-              };
+      forEachSupportedSystem =
+        f:
+        inputs.nixpkgs.lib.genAttrs supportedSystems (
+          system:
+          f {
+            inherit system;
+            pkgs = import inputs.nixpkgs {
+              inherit system;
+              overlays = [ (import rust-overlay) ];
             };
+          }
+        );
+    in
+    {
+      packages = forEachSupportedSystem (
+        { pkgs, ... }:
+        let
+          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+          rustPlatform = pkgs.makeRustPlatform {
+            rustc = rust;
+            cargo = rust;
+          };
+        in
+        {
+          default = rustPlatform.buildRustPackage {
+            name = "nm-wifi";
+            src = ./.;
+            cargoLock.lockFile = ./Cargo.lock;
+            buildInputs = [ pkgs.dbus.dev ];
+            nativeBuildInputs = [ pkgs.pkg-config ];
+          };
+        }
+      );
 
-            programs = {
-              nixfmt.enable = true;
-              prettier.enable = true;
-              rustfmt = {
-                enable = true;
-                package = rust;
-              };
-              taplo.enable = true;
-            };
-          }).config.build.wrapper;
+      formatter = forEachSupportedSystem (
+        { pkgs, ... }:
+        (treefmt-nix.lib.evalModule pkgs {
+          projectRootFile = "flake.nix";
 
-        pre-commit-check = pre-commit-hooks.lib.${system}.run {
-          src = ./.;
+          settings = {
+            allow-missing-formatter = true;
+            verbose = 0;
 
-          hooks = {
-            deadnix.enable = true;
-            nixfmt-rfc-style.enable = true;
-            treefmt = {
-              enable = true;
-              package = formatter;
+            global.excludes = [ "*.lock" ];
+
+            formatter = {
+              nixfmt.options = [ "--strict" ];
+              rustfmt.package = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
             };
           };
-        };
-      in
-      {
-        packages.default = rustPlatform.buildRustPackage {
-          name = "nm-wifi";
-          src = ./.;
-          cargoLock.lockFile = ./Cargo.lock;
-          buildInputs = [ pkgs.dbus.dev ];
-          nativeBuildInputs = [ pkgs.pkg-config ];
-        };
 
-        formatter = formatter;
+          programs = {
+            nixfmt.enable = true;
+            prettier.enable = true;
+            rustfmt = {
+              enable = true;
+              package = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+            };
+            taplo.enable = true;
+          };
+        }).config.build.wrapper
+      );
 
-        checks = { inherit pre-commit-check; };
+      checks = forEachSupportedSystem (
+        { system, ... }:
+        {
+          pre-commit-check = pre-commit-hooks.lib.${system}.run {
+            src = ./.;
 
-        devShells.default = mkShell {
-          name = "nm-wifi";
+            hooks = {
+              deadnix.enable = true;
+              nixfmt-rfc-style.enable = true;
+              treefmt = {
+                enable = true;
+                package = inputs.self.formatter.${system};
+              };
+            };
+          };
+        }
+      );
 
-          buildInputs = with pkgs; [
-            rust
-            formatter
+      devShells = forEachSupportedSystem (
+        { pkgs, system, ... }:
+        let
+          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        in
+        {
+          default = pkgs.mkShell {
+            name = "nm-wifi";
 
-            cargo-nextest
-            cargo-mutants
-            bacon
+            buildInputs = with pkgs; [
+              rust
+              inputs.self.formatter.${system}
 
-            pkg-config
-            dbus.dev
-          ];
-        };
-      }
-    );
+              cargo-nextest
+              cargo-mutants
+              bacon
+
+              pkg-config
+              dbus.dev
+            ];
+          };
+        }
+      );
+    };
 }
