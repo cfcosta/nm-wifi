@@ -43,6 +43,11 @@ pub struct App {
 }
 
 impl App {
+    fn set_selected_index(&mut self, index: usize) {
+        self.selected_index = index;
+        self.list_state.select(Some(index));
+    }
+
     pub fn new() -> App {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
@@ -79,8 +84,7 @@ impl App {
                 }
                 None => 0,
             };
-            self.list_state.select(Some(i));
-            self.selected_index = i;
+            self.set_selected_index(i);
         }
     }
 
@@ -96,8 +100,7 @@ impl App {
                 }
                 None => 0,
             };
-            self.list_state.select(Some(i));
-            self.selected_index = i;
+            self.set_selected_index(i);
         }
     }
 
@@ -165,8 +168,7 @@ impl App {
         self.networks.clear();
         self.network_count = 0;
         self.last_scan_time = None;
-        self.selected_index = 0;
-        self.list_state.select(Some(0));
+        self.set_selected_index(0);
     }
 
     pub fn handle_scan_error(&mut self, error: impl std::fmt::Display) {
@@ -183,11 +185,9 @@ impl App {
                 .iter()
                 .position(|n| n.ssid == selected_network.ssid)
             {
-                self.selected_index = new_index;
-                self.list_state.select(Some(new_index));
+                self.set_selected_index(new_index);
             } else {
-                self.selected_index = 0;
-                self.list_state.select(Some(0));
+                self.set_selected_index(0);
             }
         }
         self.selected_network = None;
