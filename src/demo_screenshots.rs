@@ -8,6 +8,7 @@ use ratatui::{
 };
 
 use crate::{
+    backend::NetworkBackend,
     theme::CatppuccinColors,
     types::{App, AppState, WifiNetwork, WifiSecurity},
     ui::ui,
@@ -88,6 +89,14 @@ pub fn write_demo_svgs(output_dir: &Path, networks: &[WifiNetwork]) -> Result<()
     }
 
     Ok(())
+}
+
+pub async fn write_demo_svgs_with_backend(
+    output_dir: &Path,
+    backend: &dyn NetworkBackend,
+) -> Result<(), Box<dyn Error>> {
+    let networks = backend.scan_networks().await?;
+    write_demo_svgs(output_dir, &networks)
 }
 
 pub fn render_app(app: &App) -> Result<Buffer, Box<dyn Error>> {
