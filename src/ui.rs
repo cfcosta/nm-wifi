@@ -26,6 +26,24 @@ pub fn format_signal_strength(strength: u8) -> String {
     format!("{}%", strength)
 }
 
+pub fn keybindings_hint(state: &AppState) -> &'static str {
+    match state {
+        AppState::NetworkList => {
+            "h:Help | i:Info | r:Rescan | c/Enter:Connect | d:Disconnect | q:Quit"
+        }
+        AppState::Help => "h/q/Esc:Back",
+        AppState::NetworkDetails => "q/i/Esc:Back",
+        AppState::PasswordInput => "Enter:Connect | Esc:Cancel",
+        AppState::Connecting | AppState::Disconnecting => "Operation in progress",
+        AppState::Scanning => "Scanning... | Esc:Quit",
+        AppState::ConnectionResult => "Enter:Continue | q/Esc:Quit",
+    }
+}
+
+pub fn operation_progress_hint() -> &'static str {
+    "Please wait for the current operation to finish"
+}
+
 pub fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
     let signal_graph = create_signal_graph(network.signal_strength);
     let signal_percent = format_signal_strength(network.signal_strength);
@@ -88,10 +106,7 @@ pub fn render_header(f: &mut Frame, app: &App, area: Rect) {
                 .fg(CatppuccinColors::MAUVE)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            " v0.1.0",
-            Style::default().fg(CatppuccinColors::SUBTEXT1),
-        ),
+        Span::styled(" v0.1.0", Style::default().fg(CatppuccinColors::SUBTEXT1)),
     ]))
     .block(Block::default().borders(Borders::ALL))
     .style(Style::default().bg(CatppuccinColors::BASE));
@@ -149,17 +164,7 @@ pub fn render_status_bar(f: &mut Frame, app: &App, area: Rect) {
         .alignment(Alignment::Left);
 
     // Keybindings hint
-    let keybindings = match app.state {
-        AppState::NetworkList => {
-            "h:Help | i:Info | r:Rescan | c/Enter:Connect | d:Disconnect | q:Quit"
-        }
-        AppState::Help => "h/q/Esc:Back",
-        AppState::NetworkDetails => "q/i/Esc:Back",
-        AppState::PasswordInput => "Enter:Connect | Esc:Cancel",
-        _ => "Esc:Cancel | q:Quit",
-    };
-
-    let hints = Paragraph::new(keybindings)
+    let hints = Paragraph::new(keybindings_hint(&app.state))
         .block(Block::default().borders(Borders::ALL))
         .style(
             Style::default()
@@ -204,10 +209,7 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
         )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled(
-                "Enter/c",
-                Style::default().fg(CatppuccinColors::GREEN),
-            ),
+            Span::styled("Enter/c", Style::default().fg(CatppuccinColors::GREEN)),
             Span::styled(
                 "     Connect to network",
                 Style::default().fg(CatppuccinColors::TEXT),
@@ -279,10 +281,7 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
             ),
         ]),
         Line::from(vec![
-            Span::styled(
-                "2.4G/5G",
-                Style::default().fg(CatppuccinColors::SAPPHIRE),
-            ),
+            Span::styled("2.4G/5G", Style::default().fg(CatppuccinColors::SAPPHIRE)),
             Span::styled(
                 "     Frequency band",
                 Style::default().fg(CatppuccinColors::TEXT),
@@ -326,8 +325,7 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
             _ => "Very Weak",
         };
 
-        let signal_text =
-            format!("{}% ({})", network.signal_strength, signal_description);
+        let signal_text = format!("{}% ({})", network.signal_strength, signal_description);
         let frequency_text = format!(
             "{} MHz ({})",
             network.frequency,
@@ -342,10 +340,7 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    &network.ssid,
-                    Style::default().fg(CatppuccinColors::TEXT),
-                ),
+                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -376,10 +371,7 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    security_type,
-                    Style::default().fg(CatppuccinColors::TEXT),
-                ),
+                Span::styled(security_type, Style::default().fg(CatppuccinColors::TEXT)),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -415,30 +407,21 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
             Line::from(""),
             Line::from(""),
             Line::from(vec![
-                Span::styled(
-                    "Press ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
+                Span::styled("Press ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
                 Span::styled(
                     "i",
                     Style::default()
                         .fg(CatppuccinColors::GREEN)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    " or ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
+                Span::styled(" or ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
                 Span::styled(
                     "Esc",
                     Style::default()
                         .fg(CatppuccinColors::GREEN)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    " to close",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
+                Span::styled(" to close", Style::default().fg(CatppuccinColors::SUBTEXT1)),
             ]),
         ];
 
@@ -484,8 +467,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             height: popup_area.height,
         };
         f.render_widget(
-            Block::default()
-                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
+            Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
             shadow_area,
         );
 
@@ -495,8 +477,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             "🔓 Open"
         };
         let signal_strength = format!("📶 {}%", network.signal_strength);
-        let frequency_band =
-            format!("📡 {}", get_frequency_band(network.frequency));
+        let frequency_band = format!("📡 {}", get_frequency_band(network.frequency));
 
         let password_display = if app.password_visible {
             app.password_input.clone()
@@ -507,10 +488,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
 
         let password_text = vec![
             Line::from(vec![
-                Span::styled(
-                    "🔗 ",
-                    Style::default().fg(CatppuccinColors::BLUE),
-                ),
+                Span::styled("🔗 ", Style::default().fg(CatppuccinColors::BLUE)),
                 Span::styled(
                     "Connect to Network",
                     Style::default()
@@ -526,10 +504,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    &network.ssid,
-                    Style::default().fg(CatppuccinColors::TEXT),
-                ),
+                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
             ]),
             Line::from(vec![
                 Span::styled(
@@ -538,10 +513,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    security_type,
-                    Style::default().fg(CatppuccinColors::YELLOW),
-                ),
+                Span::styled(security_type, Style::default().fg(CatppuccinColors::YELLOW)),
             ]),
             Line::from(vec![
                 Span::styled(
@@ -573,48 +545,30 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             )]),
             Line::from(""),
             Line::from(vec![
-                Span::styled(
-                    "┌",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled("┌", Style::default().fg(CatppuccinColors::SURFACE2)),
                 Span::styled(
                     "─".repeat(40),
                     Style::default().fg(CatppuccinColors::SURFACE2),
                 ),
-                Span::styled(
-                    "┐",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled("┐", Style::default().fg(CatppuccinColors::SURFACE2)),
             ]),
             Line::from(vec![
-                Span::styled(
-                    "│ ",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled("│ ", Style::default().fg(CatppuccinColors::SURFACE2)),
                 Span::styled(
                     &password_field,
                     Style::default()
                         .fg(CatppuccinColors::TEXT)
                         .bg(CatppuccinColors::SURFACE0),
                 ),
-                Span::styled(
-                    " │",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled(" │", Style::default().fg(CatppuccinColors::SURFACE2)),
             ]),
             Line::from(vec![
-                Span::styled(
-                    "└",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled("└", Style::default().fg(CatppuccinColors::SURFACE2)),
                 Span::styled(
                     "─".repeat(40),
                     Style::default().fg(CatppuccinColors::SURFACE2),
                 ),
-                Span::styled(
-                    "┘",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled("┘", Style::default().fg(CatppuccinColors::SURFACE2)),
             ]),
             Line::from(""),
             Line::from(""),
@@ -646,10 +600,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled(
-                    "Press ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
+                Span::styled("Press ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
                 Span::styled(
                     "Enter",
                     Style::default()
@@ -705,8 +656,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
             height: popup_area.height,
         };
         f.render_widget(
-            Block::default()
-                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
+            Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
             shadow_area,
         );
 
@@ -727,10 +677,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
 
         let connecting_text = vec![
             Line::from(vec![
-                Span::styled(
-                    "🔗 ",
-                    Style::default().fg(CatppuccinColors::BLUE),
-                ),
+                Span::styled("🔗 ", Style::default().fg(CatppuccinColors::BLUE)),
                 Span::styled(
                     "Connecting to Network",
                     Style::default()
@@ -746,10 +693,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    &network.ssid,
-                    Style::default().fg(CatppuccinColors::TEXT),
-                ),
+                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
             ]),
             Line::from(vec![
                 Span::styled(
@@ -758,10 +702,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    &status_text,
-                    Style::default().fg(CatppuccinColors::YELLOW),
-                ),
+                Span::styled(&status_text, Style::default().fg(CatppuccinColors::YELLOW)),
             ]),
             Line::from(vec![Span::styled(
                 "Progress:",
@@ -771,10 +712,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
             )]),
             Line::from(""),
             Line::from(vec![
-                Span::styled(
-                    &progress_bar,
-                    Style::default().fg(CatppuccinColors::BLUE),
-                ),
+                Span::styled(&progress_bar, Style::default().fg(CatppuccinColors::BLUE)),
                 Span::styled(
                     &progress_percent,
                     Style::default().fg(CatppuccinColors::TEXT),
@@ -794,20 +732,14 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
                     .add_modifier(Modifier::BOLD),
             )]),
             Line::from(vec![
-                Span::styled(
-                    "  ✓ ",
-                    Style::default().fg(CatppuccinColors::GREEN),
-                ),
+                Span::styled("  ✓ ", Style::default().fg(CatppuccinColors::GREEN)),
                 Span::styled(
                     "Network found",
                     Style::default().fg(CatppuccinColors::SUBTEXT1),
                 ),
             ]),
             Line::from(vec![
-                Span::styled(
-                    "  ✓ ",
-                    Style::default().fg(CatppuccinColors::GREEN),
-                ),
+                Span::styled("  ✓ ", Style::default().fg(CatppuccinColors::GREEN)),
                 Span::styled(
                     "Credentials verified",
                     Style::default().fg(CatppuccinColors::SUBTEXT1),
@@ -824,32 +756,17 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
                 ),
             ]),
             Line::from(vec![
-                Span::styled(
-                    "  ○ ",
-                    Style::default().fg(CatppuccinColors::SURFACE2),
-                ),
+                Span::styled("  ○ ", Style::default().fg(CatppuccinColors::SURFACE2)),
                 Span::styled(
                     "Obtaining IP address",
                     Style::default().fg(CatppuccinColors::SURFACE2),
                 ),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled(
-                    "Press ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-                Span::styled(
-                    "Esc",
-                    Style::default()
-                        .fg(CatppuccinColors::RED)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " to cancel",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-            ]),
+            Line::from(vec![Span::styled(
+                operation_progress_hint(),
+                Style::default().fg(CatppuccinColors::SUBTEXT1),
+            )]),
         ];
 
         let connecting_modal = Paragraph::new(connecting_text)
@@ -862,9 +779,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
                             .fg(CatppuccinColors::YELLOW)
                             .add_modifier(Modifier::BOLD),
                     )
-                    .border_style(
-                        Style::default().fg(CatppuccinColors::YELLOW),
-                    ),
+                    .border_style(Style::default().fg(CatppuccinColors::YELLOW)),
             )
             .style(Style::default().bg(CatppuccinColors::BASE))
             .alignment(Alignment::Left);
@@ -886,8 +801,7 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
             height: popup_area.height,
         };
         f.render_widget(
-            Block::default()
-                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
+            Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
             shadow_area,
         );
 
@@ -903,10 +817,7 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
 
         let disconnecting_text = vec![
             Line::from(vec![
-                Span::styled(
-                    "🔌 ",
-                    Style::default().fg(CatppuccinColors::PEACH),
-                ),
+                Span::styled("🔌 ", Style::default().fg(CatppuccinColors::PEACH)),
                 Span::styled(
                     "Disconnecting from Network",
                     Style::default()
@@ -922,10 +833,7 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    &network.ssid,
-                    Style::default().fg(CatppuccinColors::TEXT),
-                ),
+                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
             ]),
             Line::from(vec![
                 Span::styled(
@@ -934,10 +842,7 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    &status_text,
-                    Style::default().fg(CatppuccinColors::PEACH),
-                ),
+                Span::styled(&status_text, Style::default().fg(CatppuccinColors::PEACH)),
             ]),
             Line::from(vec![Span::styled(
                 "📋 Disconnection Steps:",
@@ -971,22 +876,10 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
                 Style::default().fg(CatppuccinColors::SUBTEXT1),
             )]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled(
-                    "Press ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-                Span::styled(
-                    "Esc",
-                    Style::default()
-                        .fg(CatppuccinColors::RED)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " to cancel",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
-            ]),
+            Line::from(vec![Span::styled(
+                operation_progress_hint(),
+                Style::default().fg(CatppuccinColors::SUBTEXT1),
+            )]),
         ];
 
         let disconnecting_modal = Paragraph::new(disconnecting_text)
@@ -1097,10 +990,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
                     "  Network: ",
                     Style::default().fg(CatppuccinColors::SUBTEXT1),
                 ),
-                Span::styled(
-                    &network.ssid,
-                    Style::default().fg(CatppuccinColors::TEXT),
-                ),
+                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
             ]),
             Line::from(vec![
                 Span::styled(
@@ -1174,8 +1064,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
             )]));
         }
     } else {
-        let error_msg =
-            app.connection_error.as_deref().unwrap_or("Unknown error");
+        let error_msg = app.connection_error.as_deref().unwrap_or("Unknown error");
         if app.is_disconnect_operation {
             result_text.push(Line::from(vec![Span::styled(
                 "  🔧 Try disconnecting manually",
@@ -1205,10 +1094,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
         Line::from(""),
         Line::from(""),
         Line::from(vec![
-            Span::styled(
-                "Press ",
-                Style::default().fg(CatppuccinColors::SUBTEXT1),
-            ),
+            Span::styled("Press ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
             Span::styled(
                 "Enter",
                 Style::default()
@@ -1225,10 +1111,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
                     .fg(CatppuccinColors::RED)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                " to quit",
-                Style::default().fg(CatppuccinColors::SUBTEXT1),
-            ),
+            Span::styled(" to quit", Style::default().fg(CatppuccinColors::SUBTEXT1)),
         ]),
     ]);
 
@@ -1237,9 +1120,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title_text)
-                .title_style(
-                    Style::default().fg(color).add_modifier(Modifier::BOLD),
-                )
+                .title_style(Style::default().fg(color).add_modifier(Modifier::BOLD))
                 .border_style(Style::default().fg(color)),
         )
         .style(Style::default().bg(CatppuccinColors::BASE))
@@ -1271,16 +1152,15 @@ pub fn ui(f: &mut Frame, app: &App) {
                 let popup_area = centered_rect(50, 20, f.area());
                 f.render_widget(Clear, popup_area);
 
-                let scanning_modal = Paragraph::new(
-                    "Scanning for WiFi networks...\n\nPlease wait...",
-                )
-                .block(Block::default().borders(Borders::ALL).title("Scanning"))
-                .style(
-                    Style::default()
-                        .fg(CatppuccinColors::BLUE)
-                        .bg(CatppuccinColors::BASE),
-                )
-                .alignment(Alignment::Center);
+                let scanning_modal =
+                    Paragraph::new("Scanning for WiFi networks...\n\nPlease wait...")
+                        .block(Block::default().borders(Borders::ALL).title("Scanning"))
+                        .style(
+                            Style::default()
+                                .fg(CatppuccinColors::BLUE)
+                                .bg(CatppuccinColors::BASE),
+                        )
+                        .alignment(Alignment::Center);
 
                 f.render_widget(scanning_modal, popup_area);
             } else {
@@ -1289,10 +1169,7 @@ pub fn ui(f: &mut Frame, app: &App) {
                     app.networks.iter().map(create_network_list_item).collect();
 
                 let scanning_title = Line::from(vec![
-                    Span::styled(
-                        "🔍 ",
-                        Style::default().fg(CatppuccinColors::YELLOW),
-                    ),
+                    Span::styled("🔍 ", Style::default().fg(CatppuccinColors::YELLOW)),
                     Span::styled(
                         "Scanning...",
                         Style::default()
@@ -1316,40 +1193,26 @@ pub fn ui(f: &mut Frame, app: &App) {
                     )
                     .highlight_symbol("► ");
 
-                f.render_stateful_widget(
-                    list,
-                    chunks[1],
-                    &mut app.list_state.clone(),
-                );
+                f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
             }
         }
         AppState::NetworkList => {
-            let items: Vec<ListItem> =
-                app.networks.iter().map(create_network_list_item).collect();
+            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
 
             let list_title = Line::from(vec![
-                Span::styled(
-                    "📶 ",
-                    Style::default().fg(CatppuccinColors::BLUE),
-                ),
+                Span::styled("📶 ", Style::default().fg(CatppuccinColors::BLUE)),
                 Span::styled(
                     "WiFi Networks",
                     Style::default()
                         .fg(CatppuccinColors::TEXT)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    " | ",
-                    Style::default().fg(CatppuccinColors::SUBTEXT1),
-                ),
+                Span::styled(" | ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
                 Span::styled(
                     "🔗:Connected ",
                     Style::default().fg(CatppuccinColors::GREEN),
                 ),
-                Span::styled(
-                    "🔒:Secured ",
-                    Style::default().fg(CatppuccinColors::MAUVE),
-                ),
+                Span::styled("🔒:Secured ", Style::default().fg(CatppuccinColors::MAUVE)),
                 Span::styled(
                     "2.4G/5G:Band",
                     Style::default().fg(CatppuccinColors::SAPPHIRE),
@@ -1371,24 +1234,16 @@ pub fn ui(f: &mut Frame, app: &App) {
                 )
                 .highlight_symbol("► ");
 
-            f.render_stateful_widget(
-                list,
-                chunks[1],
-                &mut app.list_state.clone(),
-            );
+            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
         }
         AppState::Help => {
             render_help_screen(f, app, chunks[1]);
         }
         AppState::NetworkDetails => {
-            let items: Vec<ListItem> =
-                app.networks.iter().map(create_network_list_item).collect();
+            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
-                .block(
-                    Block::default()
-                        .style(Style::default().bg(CatppuccinColors::BASE)),
-                )
+                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
                 .highlight_style(
                     Style::default()
                         .bg(CatppuccinColors::SURFACE0)
@@ -1397,23 +1252,15 @@ pub fn ui(f: &mut Frame, app: &App) {
                 )
                 .highlight_symbol("► ");
 
-            f.render_stateful_widget(
-                list,
-                chunks[1],
-                &mut app.list_state.clone(),
-            );
+            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
 
             render_network_details(f, app);
         }
         AppState::PasswordInput => {
-            let items: Vec<ListItem> =
-                app.networks.iter().map(create_network_list_item).collect();
+            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
-                .block(
-                    Block::default()
-                        .style(Style::default().bg(CatppuccinColors::BASE)),
-                )
+                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
                 .highlight_style(
                     Style::default()
                         .bg(CatppuccinColors::SURFACE0)
@@ -1422,23 +1269,15 @@ pub fn ui(f: &mut Frame, app: &App) {
                 )
                 .highlight_symbol("► ");
 
-            f.render_stateful_widget(
-                list,
-                chunks[1],
-                &mut app.list_state.clone(),
-            );
+            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
 
             render_enhanced_password_modal(f, app);
         }
         AppState::Connecting => {
-            let items: Vec<ListItem> =
-                app.networks.iter().map(create_network_list_item).collect();
+            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
-                .block(
-                    Block::default()
-                        .style(Style::default().bg(CatppuccinColors::BASE)),
-                )
+                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
                 .highlight_style(
                     Style::default()
                         .bg(CatppuccinColors::SURFACE0)
@@ -1447,23 +1286,15 @@ pub fn ui(f: &mut Frame, app: &App) {
                 )
                 .highlight_symbol("► ");
 
-            f.render_stateful_widget(
-                list,
-                chunks[1],
-                &mut app.list_state.clone(),
-            );
+            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
 
             render_enhanced_connecting_modal(f, app);
         }
         AppState::Disconnecting => {
-            let items: Vec<ListItem> =
-                app.networks.iter().map(create_network_list_item).collect();
+            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
-                .block(
-                    Block::default()
-                        .style(Style::default().bg(CatppuccinColors::BASE)),
-                )
+                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
                 .highlight_style(
                     Style::default()
                         .bg(CatppuccinColors::SURFACE0)
@@ -1472,23 +1303,15 @@ pub fn ui(f: &mut Frame, app: &App) {
                 )
                 .highlight_symbol("► ");
 
-            f.render_stateful_widget(
-                list,
-                chunks[1],
-                &mut app.list_state.clone(),
-            );
+            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
 
             render_enhanced_disconnecting_modal(f, app);
         }
         AppState::ConnectionResult => {
-            let items: Vec<ListItem> =
-                app.networks.iter().map(create_network_list_item).collect();
+            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
 
             let list = List::new(items)
-                .block(
-                    Block::default()
-                        .style(Style::default().bg(CatppuccinColors::BASE)),
-                )
+                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
                 .highlight_style(
                     Style::default()
                         .bg(CatppuccinColors::SURFACE0)
@@ -1497,11 +1320,7 @@ pub fn ui(f: &mut Frame, app: &App) {
                 )
                 .highlight_symbol("► ");
 
-            f.render_stateful_widget(
-                list,
-                chunks[1],
-                &mut app.list_state.clone(),
-            );
+            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
 
             render_enhanced_result_modal(f, app);
         }
@@ -1528,4 +1347,34 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{keybindings_hint, operation_progress_hint};
+    use crate::types::AppState;
+
+    #[test]
+    fn connecting_and_disconnecting_hints_do_not_claim_cancellation() {
+        assert_eq!(
+            keybindings_hint(&AppState::Connecting),
+            "Operation in progress"
+        );
+        assert_eq!(
+            keybindings_hint(&AppState::Disconnecting),
+            "Operation in progress"
+        );
+        assert_eq!(
+            operation_progress_hint(),
+            "Please wait for the current operation to finish"
+        );
+    }
+
+    #[test]
+    fn connection_result_hint_matches_available_actions() {
+        assert_eq!(
+            keybindings_hint(&AppState::ConnectionResult),
+            "Enter:Continue | q/Esc:Quit"
+        );
+    }
 }
