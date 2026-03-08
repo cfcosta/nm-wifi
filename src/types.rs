@@ -159,6 +159,16 @@ impl App {
         self.connection_start_time = None;
     }
 
+    pub fn start_scan(&mut self) {
+        self.state = AppState::Scanning;
+        self.status_message = "Scanning for networks...".to_string();
+        self.networks.clear();
+        self.network_count = 0;
+        self.last_scan_time = None;
+        self.selected_index = 0;
+        self.list_state.select(Some(0));
+    }
+
     pub fn update_selection_after_rescan(&mut self) {
         if let Some(selected_network) = &self.selected_network {
             if let Some(new_index) = self
@@ -179,6 +189,8 @@ impl App {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use super::{App, AppState, WifiNetwork};
 
     fn connected_network(ssid: &str) -> WifiNetwork {
@@ -201,5 +213,25 @@ mod tests {
 
         assert!(matches!(app.state, AppState::Disconnecting));
         assert!(app.connection_start_time.is_some());
+    }
+
+    #[test]
+    fn starting_a_scan_clears_stale_scan_metadata() {
+        let mut app = App::new();
+        app.state = AppState::NetworkList;
+        app.networks = vec![connected_network("home")];
+        app.network_count = 3;
+        app.last_scan_time = Some(Instant::now());
+        app.selected_index = 2;
+        app.list_state.select(Some(2));
+
+        app.start_scan();
+
+        assert!(matches!(app.state, AppState::Scanning));
+        assert!(app.networks.is_empty());
+        assert_eq!(app.network_count, 0);
+        assert!(app.last_scan_time.is_none());
+        assert_eq!(app.selected_index, 0);
+        assert_eq!(app.list_state.selected(), Some(0));
     }
 }

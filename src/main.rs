@@ -10,21 +10,9 @@ use std::{
 };
 
 use crossterm::{
-    event::{
-        self,
-        DisableMouseCapture,
-        EnableMouseCapture,
-        Event,
-        KeyCode,
-        KeyEventKind,
-    },
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{
-        EnterAlternateScreen,
-        LeaveAlternateScreen,
-        disable_raw_mode,
-        enable_raw_mode,
-    },
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use network::{
     connect_to_network,
@@ -39,10 +27,7 @@ use ratatui::{
 use types::{App, AppState};
 use ui::ui;
 
-async fn run_app<B: Backend>(
-    terminal: &mut Terminal<B>,
-    mut app: App,
-) -> Result<(), Box<dyn Error>> {
+async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<(), Box<dyn Error>> {
     loop {
         terminal.draw(|f| ui(f, &app))?;
 
@@ -107,14 +92,11 @@ async fn run_app<B: Backend>(
 
             // Check if we should finish scanning (after reasonable time or enough networks)
             if !app.networks.is_empty() {
-                app.status_message = format!(
-                    "Found {} network(s). Ready to connect!",
-                    app.networks.len()
-                );
+                app.status_message =
+                    format!("Found {} network(s). Ready to connect!", app.networks.len());
                 app.state = AppState::NetworkList;
             } else {
-                app.status_message =
-                    "Scanning for WiFi networks...".to_string();
+                app.status_message = "Scanning for WiFi networks...".to_string();
             }
 
             continue;
@@ -136,12 +118,7 @@ async fn run_app<B: Backend>(
                 None
             };
 
-            match connect_to_network(
-                app.selected_network.as_ref().unwrap(),
-                password,
-            )
-            .await
-            {
+            match connect_to_network(app.selected_network.as_ref().unwrap(), password).await {
                 Ok(_) => {
                     app.connection_success = true;
                     app.connection_error = None;
@@ -167,16 +144,11 @@ async fn run_app<B: Backend>(
                 continue;
             }
 
-            match disconnect_from_network(
-                app.selected_network.as_ref().unwrap(),
-            )
-            .await
-            {
+            match disconnect_from_network(app.selected_network.as_ref().unwrap()).await {
                 Ok(_) => {
                     app.connection_success = true;
                     app.connection_error = None;
-                    app.status_message =
-                        "Disconnected successfully!".to_string();
+                    app.status_message = "Disconnected successfully!".to_string();
                 }
                 Err(e) => {
                     app.connection_success = false;
@@ -211,19 +183,13 @@ async fn run_app<B: Backend>(
                             app.is_disconnect_operation = true;
                             app.state = AppState::Disconnecting;
                             app.connection_start_time = Some(Instant::now());
-                            app.status_message = format!(
-                                "Disconnecting from {}...",
-                                network.ssid
-                            );
+                            app.status_message = format!("Disconnecting from {}...", network.ssid);
 
                             app.selected_network = Some(network);
                         }
                     }
                     KeyCode::Char('r') => {
-                        app.state = AppState::Scanning;
-                        app.status_message =
-                            "Scanning for networks...".to_string();
-                        app.networks.clear();
+                        app.start_scan();
                     }
                     KeyCode::Char('h') => {
                         app.state = AppState::Help;
@@ -273,10 +239,7 @@ async fn run_app<B: Backend>(
                         // Always return to network list after connection result
                         app.back_to_network_list();
                         // Rescan to update connection status
-                        app.state = AppState::Scanning;
-                        app.status_message =
-                            "Scanning for networks...".to_string();
-                        app.networks.clear();
+                        app.start_scan();
                     }
                     _ => {}
                 },
