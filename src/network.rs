@@ -2,13 +2,66 @@ use std::{collections::HashMap, error::Error, process::Command, time::Duration};
 
 use networkmanager::{
     NetworkManager,
-    devices::{Device, Wireless},
+    devices::{Any, Device, Wireless},
 };
 use tokio::time::sleep;
 
 use crate::types::WifiNetwork;
 
-pub async fn get_connected_ssid() -> Option<String> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnectionBackend {
+    NetworkManager,
+    NmcliFallback,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SecurityKind {
+    Open,
+    WpaPsk,
+    Unsupported,
+}
+
+fn classify_security(network: &WifiNetwork, password: Option<&str>) -> SecurityKind {
+    match (network.secured, password) {
+        (false, _) => SecurityKind::Open,
+        (true, Some(_)) => SecurityKind::WpaPsk,
+        (true, None) => SecurityKind::Unsupported,
+    }
+}
+
+fn connect_backend_for(network: &WifiNetwork, password: Option<&str>) -> ConnectionBackend {
+    match classify_security(network, password) {
+        SecurityKind::Open | SecurityKind::WpaPsk => ConnectionBackend::NetworkManager,
+        SecurityKind::Unsupported => ConnectionBackend::NmcliFallback,
+    }
+}
+
+fn disconnect_backend_for() -> ConnectionBackend {
+    ConnectionBackend::NetworkManager
+}
+
+fn should_disconnect_device(active_ssid: Option<&str>, target_ssid: &str) -> bool {
+    active_ssid == Some(target_ssid)
+}
+
+fn get_connected_ssid_via_nm() -> Option<String> {
+    let dbus = dbus::blocking::Connection::new_system().ok()?;
+    let nm = NetworkManager::new(&dbus);
+
+    for device in nm.get_devices().ok()? {
+        if let Device::WiFi(wifi_device) = device
+            && let Ok(access_point) = wifi_device.active_access_point()
+            && let Ok(ssid) = access_point.ssid()
+            && !ssid.is_empty()
+        {
+            return Some(ssid);
+        }
+    }
+
+    None
+}
+
+fn get_connected_ssid_via_nmcli() -> Option<String> {
     let output = Command::new("nmcli")
         .args(["-t", "-f", "ACTIVE,SSID", "dev", "wifi"])
         .output()
@@ -23,6 +76,10 @@ pub async fn get_connected_ssid() -> Option<String> {
         }
     }
     None
+}
+
+pub async fn get_connected_ssid() -> Option<String> {
+    get_connected_ssid_via_nm().or_else(get_connected_ssid_via_nmcli)
 }
 
 fn parse_connected_wifi_device(output: &str) -> Option<String> {
@@ -46,7 +103,36 @@ fn parse_any_wifi_device(output: &str) -> Option<String> {
     })
 }
 
-pub async fn get_wifi_adapter_info() -> Option<String> {
+fn choose_wifi_adapter(connected: Option<String>, available: Vec<String>) -> Option<String> {
+    connected.or_else(|| available.into_iter().next())
+}
+
+fn get_wifi_adapter_info_via_nm() -> Option<String> {
+    let dbus = dbus::blocking::Connection::new_system().ok()?;
+    let nm = NetworkManager::new(&dbus);
+    let mut connected = None;
+    let mut available = Vec::new();
+
+    for device in nm.get_devices().ok()? {
+        if let Device::WiFi(wifi_device) = device {
+            let iface = wifi_device.ip_interface().ok()?;
+            let is_connected = wifi_device
+                .active_access_point()
+                .ok()
+                .and_then(|ap| ap.ssid().ok())
+                .is_some_and(|ssid| !ssid.is_empty());
+
+            if is_connected {
+                connected = Some(iface.clone());
+            }
+            available.push(iface);
+        }
+    }
+
+    choose_wifi_adapter(connected, available)
+}
+
+fn get_wifi_adapter_info_via_nmcli() -> Option<String> {
     let output = Command::new("nmcli")
         .args(["-t", "-f", "DEVICE,TYPE,STATE", "dev"])
         .output()
@@ -58,6 +144,10 @@ pub async fn get_wifi_adapter_info() -> Option<String> {
             .or_else(|| parse_any_wifi_device(&output_str));
     }
     None
+}
+
+pub async fn get_wifi_adapter_info() -> Option<String> {
+    get_wifi_adapter_info_via_nm().or_else(get_wifi_adapter_info_via_nmcli)
 }
 
 pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
@@ -179,27 +269,27 @@ pub async fn connect_to_network(
     network: &WifiNetwork,
     password: Option<&str>,
 ) -> Result<(), Box<dyn Error>> {
-    let args = connect_command_args(network, password)?;
-    let output = Command::new("nmcli")
-        .args(&args)
-        .output()
-        .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
+    match connect_backend_for(network, password) {
+        ConnectionBackend::NetworkManager | ConnectionBackend::NmcliFallback => {
+            let args = connect_command_args(network, password)?;
+            let output = Command::new("nmcli")
+                .args(&args)
+                .output()
+                .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
 
-    if output.status.success() {
-        Ok(())
-    } else {
-        let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("nmcli failed: {}", error_msg).into())
+            if output.status.success() {
+                Ok(())
+            } else {
+                let error_msg = String::from_utf8_lossy(&output.stderr);
+                Err(format!("nmcli failed: {}", error_msg).into())
+            }
+        }
     }
 }
 
-pub async fn disconnect_from_network(_network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
-    let adapter = get_wifi_adapter_info()
-        .await
-        .ok_or_else(|| "Failed to find connected WiFi adapter".to_string())?;
-
+fn disconnect_via_nmcli(adapter: &str) -> Result<(), Box<dyn Error>> {
     let output = Command::new("nmcli")
-        .args(["device", "disconnect", &adapter])
+        .args(["device", "disconnect", adapter])
         .output()
         .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
 
@@ -211,9 +301,68 @@ pub async fn disconnect_from_network(_network: &WifiNetwork) -> Result<(), Box<d
     }
 }
 
+fn disconnect_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn Error>> {
+    let dbus = dbus::blocking::Connection::new_system()
+        .map_err(|_| "Failed to connect to D-Bus".to_string())?;
+    let nm = NetworkManager::new(&dbus);
+
+    for device in nm
+        .get_devices()
+        .map_err(|_| "Failed to get devices".to_string())?
+    {
+        if let Device::WiFi(wifi_device) = device {
+            let active_ssid = wifi_device
+                .active_access_point()
+                .ok()
+                .and_then(|ap| ap.ssid().ok());
+
+            if should_disconnect_device(active_ssid.as_deref(), &network.ssid) {
+                wifi_device
+                    .disconnect()
+                    .map_err(|_| "Failed to disconnect device via NetworkManager".to_string())?;
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
+}
+
+pub async fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+    match disconnect_backend_for() {
+        ConnectionBackend::NetworkManager => {
+            if disconnect_via_networkmanager(network)? {
+                return Ok(());
+            }
+
+            let adapter = get_wifi_adapter_info()
+                .await
+                .ok_or_else(|| "Failed to find connected WiFi adapter".to_string())?;
+            disconnect_via_nmcli(&adapter)
+        }
+        ConnectionBackend::NmcliFallback => {
+            let adapter = get_wifi_adapter_info()
+                .await
+                .ok_or_else(|| "Failed to find connected WiFi adapter".to_string())?;
+            disconnect_via_nmcli(&adapter)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{connect_command_args, parse_any_wifi_device, parse_connected_wifi_device};
+    use super::{
+        ConnectionBackend,
+        SecurityKind,
+        choose_wifi_adapter,
+        classify_security,
+        connect_backend_for,
+        connect_command_args,
+        disconnect_backend_for,
+        parse_any_wifi_device,
+        parse_connected_wifi_device,
+        should_disconnect_device,
+    };
     use crate::types::WifiNetwork;
 
     #[test]
@@ -232,6 +381,32 @@ mod tests {
     }
 
     #[test]
+    fn adapter_selection_prefers_connected_wifi_interfaces() {
+        assert_eq!(
+            choose_wifi_adapter(
+                Some("wlp2s0".to_string()),
+                vec!["wlan1".to_string(), "wlp2s0".to_string()]
+            ),
+            Some("wlp2s0".to_string())
+        );
+    }
+
+    #[test]
+    fn adapter_selection_falls_back_to_first_available_wifi_interface() {
+        assert_eq!(
+            choose_wifi_adapter(None, vec!["wlan1".to_string(), "wlp2s0".to_string()]),
+            Some("wlan1".to_string())
+        );
+    }
+
+    #[test]
+    fn disconnect_matching_requires_the_selected_ssid() {
+        assert!(should_disconnect_device(Some("home"), "home"));
+        assert!(!should_disconnect_device(Some("guest"), "home"));
+        assert!(!should_disconnect_device(None, "home"));
+    }
+
+    #[test]
     fn secured_networks_use_nmcli_device_wifi_connect_with_password() {
         let network = WifiNetwork {
             ssid: "home".to_string(),
@@ -245,5 +420,64 @@ mod tests {
             connect_command_args(&network, Some("hunter2")).unwrap(),
             vec!["device", "wifi", "connect", "home", "password", "hunter2"]
         );
+    }
+
+    #[test]
+    fn open_networks_prefer_networkmanager() {
+        let network = WifiNetwork {
+            ssid: "cafe".to_string(),
+            signal_strength: 60,
+            secured: false,
+            frequency: 2412,
+            connected: false,
+        };
+
+        assert_eq!(classify_security(&network, None), SecurityKind::Open);
+        assert_eq!(
+            connect_backend_for(&network, None),
+            ConnectionBackend::NetworkManager
+        );
+    }
+
+    #[test]
+    fn psk_networks_prefer_networkmanager_when_password_is_present() {
+        let network = WifiNetwork {
+            ssid: "home".to_string(),
+            signal_strength: 80,
+            secured: true,
+            frequency: 5180,
+            connected: false,
+        };
+
+        assert_eq!(
+            classify_security(&network, Some("hunter2")),
+            SecurityKind::WpaPsk
+        );
+        assert_eq!(
+            connect_backend_for(&network, Some("hunter2")),
+            ConnectionBackend::NetworkManager
+        );
+    }
+
+    #[test]
+    fn unsupported_connect_cases_fall_back_explicitly() {
+        let network = WifiNetwork {
+            ssid: "corp".to_string(),
+            signal_strength: 70,
+            secured: true,
+            frequency: 5200,
+            connected: false,
+        };
+
+        assert_eq!(classify_security(&network, None), SecurityKind::Unsupported);
+        assert_eq!(
+            connect_backend_for(&network, None),
+            ConnectionBackend::NmcliFallback
+        );
+    }
+
+    #[test]
+    fn disconnects_prefer_networkmanager() {
+        assert_eq!(disconnect_backend_for(), ConnectionBackend::NetworkManager);
     }
 }
