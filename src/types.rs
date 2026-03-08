@@ -200,14 +200,44 @@ mod tests {
 
     use super::{App, AppState, WifiNetwork};
 
-    fn connected_network(ssid: &str) -> WifiNetwork {
+    fn network(ssid: &str, secured: bool, connected: bool) -> WifiNetwork {
         WifiNetwork {
             ssid: ssid.to_string(),
             signal_strength: 80,
-            secured: true,
+            secured,
             frequency: 5180,
-            connected: true,
+            connected,
         }
+    }
+
+    fn connected_network(ssid: &str) -> WifiNetwork {
+        network(ssid, true, true)
+    }
+
+    #[test]
+    fn next_wraps_and_keeps_selection_state_in_sync() {
+        let mut app = App::new();
+        app.networks = vec![connected_network("home"), connected_network("guest")];
+        app.selected_index = 1;
+        app.list_state.select(Some(1));
+
+        app.next();
+
+        assert_eq!(app.selected_index, 0);
+        assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn previous_wraps_and_keeps_selection_state_in_sync() {
+        let mut app = App::new();
+        app.networks = vec![connected_network("home"), connected_network("guest")];
+        app.selected_index = 0;
+        app.list_state.select(Some(0));
+
+        app.previous();
+
+        assert_eq!(app.selected_index, 1);
+        assert_eq!(app.list_state.selected(), Some(1));
     }
 
     #[test]
@@ -223,14 +253,36 @@ mod tests {
     }
 
     #[test]
+    fn select_network_uses_current_selection_not_just_index_zero() {
+        let mut app = App::new();
+        app.state = AppState::NetworkList;
+        app.networks = vec![
+            network("cafe", false, false),
+            network("office", true, false),
+        ];
+        app.selected_index = 1;
+        app.list_state.select(Some(1));
+
+        app.select_network();
+
+        assert!(matches!(app.state, AppState::PasswordInput));
+        assert_eq!(
+            app.selected_network
+                .as_ref()
+                .map(|network| network.ssid.as_str()),
+            Some("office")
+        );
+    }
+
+    #[test]
     fn starting_a_scan_clears_stale_scan_metadata() {
         let mut app = App::new();
         app.state = AppState::NetworkList;
         app.networks = vec![connected_network("home")];
         app.network_count = 3;
         app.last_scan_time = Some(Instant::now());
-        app.selected_index = 2;
-        app.list_state.select(Some(2));
+        app.selected_index = 0;
+        app.list_state.select(Some(0));
 
         app.start_scan();
 
@@ -240,6 +292,47 @@ mod tests {
         assert!(app.last_scan_time.is_none());
         assert_eq!(app.selected_index, 0);
         assert_eq!(app.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn start_scan_resets_selection_fields_together() {
+        let mut app = App::new();
+        app.networks = vec![connected_network("home"), connected_network("guest")];
+        app.selected_index = 1;
+        app.list_state.select(Some(1));
+
+        app.start_scan();
+
+        assert_eq!(app.selected_index, 0);
+        assert_eq!(app.list_state.selected(), Some(app.selected_index));
+    }
+
+    #[test]
+    fn update_selection_after_rescan_restores_matching_ssid() {
+        let mut app = App::new();
+        app.networks = vec![connected_network("guest"), connected_network("home")];
+        app.selected_network = Some(connected_network("home"));
+
+        app.update_selection_after_rescan();
+
+        assert_eq!(app.selected_index, 1);
+        assert_eq!(app.list_state.selected(), Some(1));
+        assert!(app.selected_network.is_none());
+    }
+
+    #[test]
+    fn update_selection_after_rescan_resets_to_first_when_selected_ssid_disappears() {
+        let mut app = App::new();
+        app.selected_index = 1;
+        app.list_state.select(Some(1));
+        app.networks = vec![connected_network("guest"), connected_network("cafe")];
+        app.selected_network = Some(connected_network("home"));
+
+        app.update_selection_after_rescan();
+
+        assert_eq!(app.selected_index, 0);
+        assert_eq!(app.list_state.selected(), Some(0));
+        assert!(app.selected_network.is_none());
     }
 
     #[test]

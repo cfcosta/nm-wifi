@@ -51,6 +51,21 @@ impl<F: FnOnce()> Drop for CleanupGuard<F> {
     }
 }
 
+fn begin_disconnect_for_selected_network(app: &mut App) {
+    if let Some(network) = app
+        .networks
+        .get(app.selected_index)
+        .filter(|n| n.connected)
+        .cloned()
+    {
+        app.is_disconnect_operation = true;
+        app.state = AppState::Disconnecting;
+        app.connection_start_time = Some(Instant::now());
+        app.status_message = format!("Disconnecting from {}...", network.ssid);
+        app.selected_network = Some(network);
+    }
+}
+
 async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<(), Box<dyn Error>> {
     loop {
         terminal.draw(|f| ui(f, &app))?;
@@ -204,19 +219,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
                     KeyCode::Char('k') | KeyCode::Up => app.previous(),
                     KeyCode::Enter | KeyCode::Char('c') => app.select_network(),
                     KeyCode::Char('d') => {
-                        if let Some(network) = app
-                            .networks
-                            .get(app.selected_index)
-                            .filter(|n| n.connected)
-                            .cloned()
-                        {
-                            app.is_disconnect_operation = true;
-                            app.state = AppState::Disconnecting;
-                            app.connection_start_time = Some(Instant::now());
-                            app.status_message = format!("Disconnecting from {}...", network.ssid);
-
-                            app.selected_network = Some(network);
-                        }
+                        begin_disconnect_for_selected_network(&mut app);
                     }
                     KeyCode::Char('r') => {
                         app.start_scan();
@@ -317,7 +320,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
-    use super::CleanupGuard;
+    use super::{CleanupGuard, begin_disconnect_for_selected_network};
+    use crate::types::{App, AppState, WifiNetwork};
+
+    fn network(ssid: &str, connected: bool) -> WifiNetwork {
+        WifiNetwork {
+            ssid: ssid.to_string(),
+            signal_strength: 80,
+            secured: true,
+            frequency: 5180,
+            connected,
+        }
+    }
 
     #[test]
     fn cleanup_guard_runs_cleanup_on_drop() {
@@ -331,5 +345,43 @@ mod tests {
         }
 
         assert!(*cleaned.borrow());
+    }
+
+    #[test]
+    fn disconnect_shortcut_uses_current_selected_connected_network() {
+        let mut app = App::new();
+        app.state = AppState::NetworkList;
+        app.networks = vec![network("guest", false), network("home", true)];
+        app.selected_index = 1;
+        app.list_state.select(Some(1));
+
+        begin_disconnect_for_selected_network(&mut app);
+
+        assert!(matches!(app.state, AppState::Disconnecting));
+        assert!(app.is_disconnect_operation);
+        assert!(app.connection_start_time.is_some());
+        assert_eq!(
+            app.selected_network
+                .as_ref()
+                .map(|network| network.ssid.as_str()),
+            Some("home")
+        );
+        assert_eq!(app.status_message, "Disconnecting from home...");
+    }
+
+    #[test]
+    fn disconnect_shortcut_ignores_unconnected_selected_network() {
+        let mut app = App::new();
+        app.state = AppState::NetworkList;
+        app.networks = vec![network("guest", false), network("home", true)];
+        app.selected_index = 0;
+        app.list_state.select(Some(0));
+
+        begin_disconnect_for_selected_network(&mut app);
+
+        assert!(matches!(app.state, AppState::NetworkList));
+        assert!(!app.is_disconnect_operation);
+        assert!(app.connection_start_time.is_none());
+        assert!(app.selected_network.is_none());
     }
 }
