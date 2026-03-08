@@ -75,11 +75,15 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     Ok(demo_networks())
 }
 
-pub fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+pub fn connect_to_network(
+    request: ConnectionRequest<'_>,
+) -> Result<(), Box<dyn Error>> {
     demo_connect(request)
 }
 
-pub fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+pub fn disconnect_from_network(
+    network: &WifiNetwork,
+) -> Result<(), Box<dyn Error>> {
     if network.connected {
         Ok(())
     } else {

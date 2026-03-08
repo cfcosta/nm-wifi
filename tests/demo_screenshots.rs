@@ -2,7 +2,11 @@ use nm_wifi::theme::CatppuccinColors;
 #[cfg(feature = "demo")]
 use nm_wifi::{
     backend::DemoNetworkBackend,
-    demo_screenshots::{demo_shot_apps, write_demo_svgs, write_demo_svgs_with_backend},
+    demo_screenshots::{
+        demo_shot_apps,
+        write_demo_svgs,
+        write_demo_svgs_with_backend,
+    },
     network::demo_networks,
 };
 use ratatui::style::Color;
@@ -32,10 +36,12 @@ fn screenshot_writer_creates_svg_files() {
     output_dir.push(format!("nm-wifi-screens-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&output_dir);
 
-    write_demo_svgs(output_dir.as_path(), &demo_networks()).expect("screenshot generation succeeds");
+    write_demo_svgs(output_dir.as_path(), &demo_networks())
+        .expect("screenshot generation succeeds");
 
-    let network_list = std::fs::read_to_string(output_dir.join("network-list.svg"))
-        .expect("network list svg exists");
+    let network_list =
+        std::fs::read_to_string(output_dir.join("network-list.svg"))
+            .expect("network list svg exists");
     assert!(network_list.starts_with("<svg "));
     assert!(network_list.contains("font-family=\"monospace\""));
 
@@ -54,8 +60,9 @@ async fn screenshot_writer_can_load_networks_through_the_backend_trait() {
         .await
         .expect("backend-driven screenshot generation succeeds");
 
-    let network_list = std::fs::read_to_string(output_dir.join("network-list.svg"))
-        .expect("network list svg exists");
+    let network_list =
+        std::fs::read_to_string(output_dir.join("network-list.svg"))
+            .expect("network list svg exists");
     assert!(network_list.starts_with("<svg "));
 
     let _ = std::fs::remove_dir_all(&output_dir);

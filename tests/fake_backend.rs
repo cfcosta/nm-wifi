@@ -48,7 +48,9 @@ impl NetworkBackend for FakeBackend {
         Ok(self.state.borrow().adapter_name.clone())
     }
 
-    fn scan_networks(&self) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>> {
+    fn scan_networks(
+        &self,
+    ) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>> {
         let result = {
             let state = self.state.borrow();
             match &state.scan_error {
@@ -59,10 +61,14 @@ impl NetworkBackend for FakeBackend {
         Box::pin(async move { result })
     }
 
-    fn connect(&self, request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+    fn connect(
+        &self,
+        request: ConnectionRequest<'_>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut state = self.state.borrow_mut();
         let ssid = match request {
-            ConnectionRequest::Open { network } | ConnectionRequest::Secured { network, .. } => {
+            ConnectionRequest::Open { network }
+            | ConnectionRequest::Secured { network, .. } => {
                 network.ssid.clone()
             }
         };
@@ -143,7 +149,8 @@ fn fake_backend_connect_completes_result_state_and_records_calls() {
     app.password_input = "AcerolaAcai".to_string();
     app.state = AppState::Connecting;
 
-    complete_connection_with_backend(&backend, &mut app).expect("connect succeeds");
+    complete_connection_with_backend(&backend, &mut app)
+        .expect("connect succeeds");
 
     assert!(matches!(app.state, AppState::ConnectionResult));
     assert!(app.connection_success);

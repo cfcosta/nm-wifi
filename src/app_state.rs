@@ -95,7 +95,11 @@ impl App {
         self.networks.get(self.selected_index)
     }
 
-    pub fn begin_operation(&mut self, network: WifiNetwork, operation: OperationKind) {
+    pub fn begin_operation(
+        &mut self,
+        network: WifiNetwork,
+        operation: OperationKind,
+    ) {
         self.selected_network = Some(network.clone());
         self.is_disconnect_operation = operation == OperationKind::Disconnect;
         self.connection_start_time = Some(Instant::now());
@@ -185,7 +189,8 @@ impl App {
         self.state = AppState::NetworkList;
         self.network_count = self.networks.len();
         self.last_scan_time = None;
-        self.status_message = format!("Scan failed: {}. Press r to retry.", error);
+        self.status_message =
+            format!("Scan failed: {}. Press r to retry.", error);
     }
 
     pub fn update_selection_after_rescan(&mut self) {
@@ -211,7 +216,11 @@ mod tests {
     use super::{App, AppState};
     use crate::wifi::{WifiNetwork, WifiSecurity};
 
-    fn network(ssid: &str, security: WifiSecurity, connected: bool) -> WifiNetwork {
+    fn network(
+        ssid: &str,
+        security: WifiSecurity,
+        connected: bool,
+    ) -> WifiNetwork {
         WifiNetwork {
             ssid: ssid.to_string(),
             signal_strength: 80,
@@ -228,7 +237,8 @@ mod tests {
     #[test]
     fn next_wraps_and_keeps_selection_state_in_sync() {
         let mut app = App::new();
-        app.networks = vec![connected_network("home"), connected_network("guest")];
+        app.networks =
+            vec![connected_network("home"), connected_network("guest")];
         app.selected_index = 1;
 
         app.next();
@@ -239,7 +249,8 @@ mod tests {
     #[test]
     fn previous_wraps_and_keeps_selection_state_in_sync() {
         let mut app = App::new();
-        app.networks = vec![connected_network("home"), connected_network("guest")];
+        app.networks =
+            vec![connected_network("home"), connected_network("guest")];
         app.selected_index = 0;
 
         app.previous();
@@ -301,7 +312,8 @@ mod tests {
     #[test]
     fn start_scan_resets_selection_fields_together() {
         let mut app = App::new();
-        app.networks = vec![connected_network("home"), connected_network("guest")];
+        app.networks =
+            vec![connected_network("home"), connected_network("guest")];
         app.selected_index = 1;
 
         app.start_scan();
@@ -312,7 +324,8 @@ mod tests {
     #[test]
     fn update_selection_after_rescan_restores_matching_ssid() {
         let mut app = App::new();
-        app.networks = vec![connected_network("guest"), connected_network("home")];
+        app.networks =
+            vec![connected_network("guest"), connected_network("home")];
         app.selected_network = Some(connected_network("home"));
 
         app.update_selection_after_rescan();
@@ -322,10 +335,12 @@ mod tests {
     }
 
     #[test]
-    fn update_selection_after_rescan_resets_to_first_when_selected_ssid_disappears() {
+    fn update_selection_after_rescan_resets_to_first_when_selected_ssid_disappears()
+     {
         let mut app = App::new();
         app.selected_index = 1;
-        app.networks = vec![connected_network("guest"), connected_network("cafe")];
+        app.networks =
+            vec![connected_network("guest"), connected_network("cafe")];
         app.selected_network = Some(connected_network("home"));
 
         app.update_selection_after_rescan();

@@ -7,8 +7,13 @@ pub type BackendFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 pub trait NetworkBackend {
     fn connected_ssid(&self) -> Result<Option<String>, Box<dyn Error>>;
     fn adapter_name(&self) -> Result<Option<String>, Box<dyn Error>>;
-    fn scan_networks(&self) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>>;
-    fn connect(&self, request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>>;
+    fn scan_networks(
+        &self,
+    ) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>>;
+    fn connect(
+        &self,
+        request: ConnectionRequest<'_>,
+    ) -> Result<(), Box<dyn Error>>;
     fn disconnect(&self, network: &WifiNetwork) -> Result<(), Box<dyn Error>>;
 }
 
@@ -26,11 +31,16 @@ impl NetworkBackend for DemoNetworkBackend {
         crate::network::demo::get_wifi_adapter_name()
     }
 
-    fn scan_networks(&self) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>> {
+    fn scan_networks(
+        &self,
+    ) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>> {
         Box::pin(crate::network::demo::scan_wifi_networks())
     }
 
-    fn connect(&self, request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+    fn connect(
+        &self,
+        request: ConnectionRequest<'_>,
+    ) -> Result<(), Box<dyn Error>> {
         crate::network::demo::connect_to_network(request)
     }
 
@@ -53,11 +63,16 @@ impl NetworkBackend for NetworkManagerBackend {
         crate::network::networkmanager::get_wifi_adapter_name()
     }
 
-    fn scan_networks(&self) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>> {
+    fn scan_networks(
+        &self,
+    ) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>> {
         Box::pin(crate::network::networkmanager::scan_wifi_networks())
     }
 
-    fn connect(&self, request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+    fn connect(
+        &self,
+        request: ConnectionRequest<'_>,
+    ) -> Result<(), Box<dyn Error>> {
         crate::network::networkmanager::connect_to_network(request)
     }
 

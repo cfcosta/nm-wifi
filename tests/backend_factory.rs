@@ -4,7 +4,8 @@ use nm_wifi::backend::default_backend;
 
 #[cfg(feature = "demo")]
 #[tokio::test]
-async fn default_backend_uses_demo_implementation_when_demo_feature_is_enabled() {
+async fn default_backend_uses_demo_implementation_when_demo_feature_is_enabled()
+{
     let backend = default_backend();
 
     assert_eq!(

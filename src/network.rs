@@ -30,7 +30,8 @@ fn variant<T: RefArg + 'static>(value: T) -> Variant<Box<dyn RefArg>> {
 #[cfg(any(test, not(feature = "demo")))]
 fn base_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
     let mut connection = PropMap::new();
-    connection.insert("type".to_string(), variant("802-11-wireless".to_string()));
+    connection
+        .insert("type".to_string(), variant("802-11-wireless".to_string()));
     connection.insert("id".to_string(), variant(format!("nm-wifi-{ssid}")));
 
     let mut wireless = PropMap::new();
@@ -52,7 +53,9 @@ fn base_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
 }
 
 #[cfg(any(test, not(feature = "demo")))]
-fn open_network_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
+fn open_network_connection_settings(
+    ssid: &str,
+) -> HashMap<&'static str, PropMap> {
     base_connection_settings(ssid)
 }
 
@@ -65,7 +68,8 @@ fn secured_network_connection_settings(
     let mut settings = base_connection_settings(ssid);
 
     let mut wireless_security = PropMap::new();
-    wireless_security.insert("key-mgmt".to_string(), variant(key_mgmt.to_string()));
+    wireless_security
+        .insert("key-mgmt".to_string(), variant(key_mgmt.to_string()));
     wireless_security.insert("psk".to_string(), variant(password.to_string()));
 
     if let Some(wireless) = settings.get_mut("802-11-wireless") {
@@ -113,22 +117,30 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
 }
 
 #[cfg(feature = "demo")]
-pub fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+pub fn connect_to_network(
+    request: ConnectionRequest<'_>,
+) -> Result<(), Box<dyn Error>> {
     demo::connect_to_network(request)
 }
 
 #[cfg(not(feature = "demo"))]
-pub fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
+pub fn connect_to_network(
+    request: ConnectionRequest<'_>,
+) -> Result<(), Box<dyn Error>> {
     networkmanager::connect_to_network(request)
 }
 
 #[cfg(feature = "demo")]
-pub fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+pub fn disconnect_from_network(
+    network: &WifiNetwork,
+) -> Result<(), Box<dyn Error>> {
     demo::disconnect_from_network(network)
 }
 
 #[cfg(not(feature = "demo"))]
-pub fn disconnect_from_network(network: &WifiNetwork) -> Result<(), Box<dyn Error>> {
+pub fn disconnect_from_network(
+    network: &WifiNetwork,
+) -> Result<(), Box<dyn Error>> {
     networkmanager::disconnect_from_network(network)
 }
 
@@ -154,7 +166,10 @@ mod tests {
         scan_wait_duration,
         should_disconnect_device,
     };
-    use super::{open_network_connection_settings, secured_network_connection_settings};
+    use super::{
+        open_network_connection_settings,
+        secured_network_connection_settings,
+    };
     #[cfg(not(feature = "demo"))]
     use crate::wifi::WifiNetwork;
     use crate::wifi::WifiSecurity;
@@ -175,7 +190,10 @@ mod tests {
     #[test]
     fn adapter_selection_falls_back_to_first_available_wifi_interface() {
         assert_eq!(
-            choose_wifi_adapter_name(None, vec!["wlan1".to_string(), "wlp2s0".to_string()]),
+            choose_wifi_adapter_name(
+                None,
+                vec!["wlan1".to_string(), "wlp2s0".to_string()]
+            ),
             Some("wlan1".to_string())
         );
     }
@@ -256,7 +274,8 @@ mod tests {
 
     #[test]
     fn psk_network_settings_include_wireless_security() {
-        let settings = secured_network_connection_settings("home", "hunter2", "wpa-psk");
+        let settings =
+            secured_network_connection_settings("home", "hunter2", "wpa-psk");
 
         assert!(settings.contains_key("802-11-wireless-security"));
         assert_eq!(
@@ -277,7 +296,8 @@ mod tests {
 
     #[test]
     fn sae_network_settings_use_sae_key_management() {
-        let settings = secured_network_connection_settings("home", "hunter2", "sae");
+        let settings =
+            secured_network_connection_settings("home", "hunter2", "sae");
 
         assert_eq!(
             settings

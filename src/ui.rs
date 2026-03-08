@@ -46,7 +46,8 @@ pub fn format_ssid_column(ssid: &str, width: usize) -> String {
         current_width += ch_width;
     }
 
-    let padding = width.saturating_sub(UnicodeWidthStr::width(formatted.as_str()));
+    let padding =
+        width.saturating_sub(UnicodeWidthStr::width(formatted.as_str()));
     formatted.push_str(&" ".repeat(padding));
     formatted
 }
@@ -115,9 +116,11 @@ fn render_network_list_background(
     area: Rect,
     title: Option<Line<'static>>,
 ) {
-    let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
+    let items: Vec<ListItem> =
+        app.networks.iter().map(create_network_list_item).collect();
 
-    let mut block = Block::default().style(Style::default().bg(CatppuccinColors::BASE));
+    let mut block =
+        Block::default().style(Style::default().bg(CatppuccinColors::BASE));
     if let Some(title) = title {
         block = block.title(title);
     }
@@ -159,7 +162,10 @@ pub fn render_header(f: &mut Frame, app: &App, area: Rect) {
                 .fg(CatppuccinColors::MAUVE)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" v0.1.0", Style::default().fg(CatppuccinColors::SUBTEXT1)),
+        Span::styled(
+            " v0.1.0",
+            Style::default().fg(CatppuccinColors::SUBTEXT1),
+        ),
     ]))
     .block(Block::default().borders(Borders::ALL))
     .style(Style::default().bg(CatppuccinColors::BASE));
@@ -308,7 +314,8 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
             _ => "Very Weak",
         };
 
-        let signal_text = format!("{}% ({})", network.signal_strength, signal_description);
+        let signal_text =
+            format!("{}% ({})", network.signal_strength, signal_description);
         let frequency_text = format!(
             "{} MHz ({})",
             network.frequency,
@@ -323,7 +330,10 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(&network.ssid, Style::default().fg(CatppuccinColors::TEXT)),
+                Span::styled(
+                    &network.ssid,
+                    Style::default().fg(CatppuccinColors::TEXT),
+                ),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -354,7 +364,10 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
                         .fg(CatppuccinColors::MAUVE)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(security_type, Style::default().fg(CatppuccinColors::TEXT)),
+                Span::styled(
+                    security_type,
+                    Style::default().fg(CatppuccinColors::TEXT),
+                ),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -390,21 +403,30 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
             Line::from(""),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Press ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
+                Span::styled(
+                    "Press ",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
                 Span::styled(
                     "i",
                     Style::default()
                         .fg(CatppuccinColors::GREEN)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" or ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
+                Span::styled(
+                    " or ",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
                 Span::styled(
                     "Esc",
                     Style::default()
                         .fg(CatppuccinColors::GREEN)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" to close", Style::default().fg(CatppuccinColors::SUBTEXT1)),
+                Span::styled(
+                    " to close",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
             ]),
         ];
 
@@ -438,7 +460,8 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             height: popup_area.height,
         };
         f.render_widget(
-            Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
+            Block::default()
+                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
             shadow_area,
         );
 
@@ -451,35 +474,56 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
 
         let password_text = vec![
             Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!("Security: {}", network.security.display_name())),
+            Line::from(format!(
+                "Security: {}",
+                network.security.display_name()
+            )),
             Line::from(""),
             Line::from("Password:"),
             Line::from(""),
             Line::from(vec![
-                Span::styled("┌", Style::default().fg(CatppuccinColors::SURFACE2)),
+                Span::styled(
+                    "┌",
+                    Style::default().fg(CatppuccinColors::SURFACE2),
+                ),
                 Span::styled(
                     "─".repeat(40),
                     Style::default().fg(CatppuccinColors::SURFACE2),
                 ),
-                Span::styled("┐", Style::default().fg(CatppuccinColors::SURFACE2)),
+                Span::styled(
+                    "┐",
+                    Style::default().fg(CatppuccinColors::SURFACE2),
+                ),
             ]),
             Line::from(vec![
-                Span::styled("│ ", Style::default().fg(CatppuccinColors::SURFACE2)),
+                Span::styled(
+                    "│ ",
+                    Style::default().fg(CatppuccinColors::SURFACE2),
+                ),
                 Span::styled(
                     &password_field,
                     Style::default()
                         .fg(CatppuccinColors::TEXT)
                         .bg(CatppuccinColors::SURFACE0),
                 ),
-                Span::styled(" │", Style::default().fg(CatppuccinColors::SURFACE2)),
+                Span::styled(
+                    " │",
+                    Style::default().fg(CatppuccinColors::SURFACE2),
+                ),
             ]),
             Line::from(vec![
-                Span::styled("└", Style::default().fg(CatppuccinColors::SURFACE2)),
+                Span::styled(
+                    "└",
+                    Style::default().fg(CatppuccinColors::SURFACE2),
+                ),
                 Span::styled(
                     "─".repeat(40),
                     Style::default().fg(CatppuccinColors::SURFACE2),
                 ),
-                Span::styled("┘", Style::default().fg(CatppuccinColors::SURFACE2)),
+                Span::styled(
+                    "┘",
+                    Style::default().fg(CatppuccinColors::SURFACE2),
+                ),
             ]),
             Line::from(""),
             Line::from("Enter: connect"),
@@ -518,13 +562,17 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
             height: popup_area.height,
         };
         f.render_widget(
-            Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
+            Block::default()
+                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
             shadow_area,
         );
 
         let connecting_text = vec![
             Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!("Security: {}", network.security.display_name())),
+            Line::from(format!(
+                "Security: {}",
+                network.security.display_name()
+            )),
             Line::from(format!(
                 "Signal: {}% ({})",
                 network.signal_strength,
@@ -545,7 +593,9 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
                             .fg(CatppuccinColors::YELLOW)
                             .add_modifier(Modifier::BOLD),
                     )
-                    .border_style(Style::default().fg(CatppuccinColors::YELLOW)),
+                    .border_style(
+                        Style::default().fg(CatppuccinColors::YELLOW),
+                    ),
             )
             .style(Style::default().bg(CatppuccinColors::BASE))
             .alignment(Alignment::Left);
@@ -566,13 +616,17 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
             height: popup_area.height,
         };
         f.render_widget(
-            Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
+            Block::default()
+                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
             shadow_area,
         );
 
         let disconnecting_text = vec![
             Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!("Security: {}", network.security.display_name())),
+            Line::from(format!(
+                "Security: {}",
+                network.security.display_name()
+            )),
             Line::from("Disconnecting via NetworkManager..."),
             Line::from("Press Esc to quit the application."),
         ];
@@ -628,7 +682,10 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
     if let Some(network) = &app.selected_network {
         result_text.extend([
             Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!("Security: {}", network.security.display_name())),
+            Line::from(format!(
+                "Security: {}",
+                network.security.display_name()
+            )),
             Line::from(format!(
                 "Signal: {}% ({})",
                 network.signal_strength,
@@ -646,15 +703,20 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
     result_text.push(Line::from(""));
 
     if app.connection_success {
-        result_text.push(Line::from("Status: NetworkManager reported success."));
+        result_text
+            .push(Line::from("Status: NetworkManager reported success."));
     } else {
-        let error_msg = app.connection_error.as_deref().unwrap_or("Unknown error");
+        let error_msg =
+            app.connection_error.as_deref().unwrap_or("Unknown error");
         result_text.push(Line::from(vec![
             Span::styled(
                 "Error: ",
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(error_msg, Style::default().fg(CatppuccinColors::TEXT)),
+            Span::styled(
+                error_msg,
+                Style::default().fg(CatppuccinColors::TEXT),
+            ),
         ]));
     }
 
@@ -669,7 +731,9 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .title_style(Style::default().fg(color).add_modifier(Modifier::BOLD))
+                .title_style(
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                )
                 .border_style(Style::default().fg(color)),
         )
         .style(Style::default().bg(CatppuccinColors::BASE))
@@ -701,20 +765,24 @@ pub fn ui(f: &mut Frame, app: &App) {
                 let popup_area = centered_rect(50, 20, f.area());
                 f.render_widget(Clear, popup_area);
 
-                let scanning_modal =
-                    Paragraph::new("Scanning for WiFi networks...\n\nPlease wait...")
-                        .block(Block::default().borders(Borders::ALL).title("Scanning"))
-                        .style(
-                            Style::default()
-                                .fg(CatppuccinColors::BLUE)
-                                .bg(CatppuccinColors::BASE),
-                        )
-                        .alignment(Alignment::Center);
+                let scanning_modal = Paragraph::new(
+                    "Scanning for WiFi networks...\n\nPlease wait...",
+                )
+                .block(Block::default().borders(Borders::ALL).title("Scanning"))
+                .style(
+                    Style::default()
+                        .fg(CatppuccinColors::BLUE)
+                        .bg(CatppuccinColors::BASE),
+                )
+                .alignment(Alignment::Center);
 
                 f.render_widget(scanning_modal, popup_area);
             } else {
                 let scanning_title = Line::from(vec![
-                    Span::styled("🔍 ", Style::default().fg(CatppuccinColors::YELLOW)),
+                    Span::styled(
+                        "🔍 ",
+                        Style::default().fg(CatppuccinColors::YELLOW),
+                    ),
                     Span::styled(
                         "Scanning...",
                         Style::default()
@@ -723,24 +791,38 @@ pub fn ui(f: &mut Frame, app: &App) {
                     ),
                 ]);
 
-                render_network_list_background(f, app, chunks[1], Some(scanning_title));
+                render_network_list_background(
+                    f,
+                    app,
+                    chunks[1],
+                    Some(scanning_title),
+                );
             }
         }
         AppState::NetworkList => {
             let list_title = Line::from(vec![
-                Span::styled("📶 ", Style::default().fg(CatppuccinColors::BLUE)),
+                Span::styled(
+                    "📶 ",
+                    Style::default().fg(CatppuccinColors::BLUE),
+                ),
                 Span::styled(
                     "WiFi Networks",
                     Style::default()
                         .fg(CatppuccinColors::TEXT)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" | ", Style::default().fg(CatppuccinColors::SUBTEXT1)),
+                Span::styled(
+                    " | ",
+                    Style::default().fg(CatppuccinColors::SUBTEXT1),
+                ),
                 Span::styled(
                     "🔗:Connected ",
                     Style::default().fg(CatppuccinColors::GREEN),
                 ),
-                Span::styled("🔒:Secured ", Style::default().fg(CatppuccinColors::MAUVE)),
+                Span::styled(
+                    "🔒:Secured ",
+                    Style::default().fg(CatppuccinColors::MAUVE),
+                ),
                 Span::styled(
                     "2.4G/5G:Band",
                     Style::default().fg(CatppuccinColors::SAPPHIRE),

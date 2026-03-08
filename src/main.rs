@@ -3,7 +3,12 @@ use std::{error::Error, io};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{
+        EnterAlternateScreen,
+        LeaveAlternateScreen,
+        disable_raw_mode,
+        enable_raw_mode,
+    },
 };
 use nm_wifi::{
     app::{CleanupGuard, run_app_with_backend},
@@ -20,7 +25,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let cleanup_guard = CleanupGuard::new(|| {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        let _ =
+            execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
     });
 
     let backend = CrosstermBackend::new(stdout);

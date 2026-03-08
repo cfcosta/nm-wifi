@@ -76,7 +76,10 @@ pub async fn refresh_networks_with_backend(
     }
 
     if !app.networks.is_empty() {
-        app.status_message = format!("Found {} network(s). Ready to connect!", app.networks.len());
+        app.status_message = format!(
+            "Found {} network(s). Ready to connect!",
+            app.networks.len()
+        );
         app.state = AppState::NetworkList;
     } else {
         app.status_message = "Scanning for WiFi networks...".to_string();
@@ -127,9 +130,19 @@ async fn handle_scanning_state(
         {
             match key.code {
                 KeyCode::Esc => app.quit(),
-                KeyCode::Char('j') | KeyCode::Down if !app.networks.is_empty() => app.next(),
-                KeyCode::Char('k') | KeyCode::Up if !app.networks.is_empty() => app.previous(),
-                KeyCode::Enter | KeyCode::Char('c') if !app.networks.is_empty() => {
+                KeyCode::Char('j') | KeyCode::Down
+                    if !app.networks.is_empty() =>
+                {
+                    app.next()
+                }
+                KeyCode::Char('k') | KeyCode::Up
+                    if !app.networks.is_empty() =>
+                {
+                    app.previous()
+                }
+                KeyCode::Enter | KeyCode::Char('c')
+                    if !app.networks.is_empty() =>
+                {
                     app.activate_selected_network()
                 }
                 _ => {}
@@ -179,7 +192,9 @@ fn handle_keypress(app: &mut App, key: KeyCode) {
             KeyCode::Char('q') | KeyCode::Esc => app.quit(),
             KeyCode::Char('j') | KeyCode::Down => app.next(),
             KeyCode::Char('k') | KeyCode::Up => app.previous(),
-            KeyCode::Enter | KeyCode::Char('c') => app.activate_selected_network(),
+            KeyCode::Enter | KeyCode::Char('c') => {
+                app.activate_selected_network()
+            }
             KeyCode::Char('d') => begin_disconnect_for_selected_network(app),
             KeyCode::Char('r') => app.start_scan(),
             KeyCode::Char('h') => app.state = AppState::Help,
@@ -220,7 +235,8 @@ fn handle_keypress(app: &mut App, key: KeyCode) {
             }
             _ => {}
         },
-        AppState::Scanning | AppState::Connecting | AppState::Disconnecting => {}
+        AppState::Scanning | AppState::Connecting | AppState::Disconnecting => {
+        }
     }
 }
 
@@ -263,7 +279,10 @@ pub async fn run_app_with_backend<B: Backend>(
     Ok(())
 }
 
-pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: App) -> Result<(), Box<dyn Error>> {
+pub async fn run_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: App,
+) -> Result<(), Box<dyn Error>> {
     let backend = default_backend();
     run_app_with_backend(terminal, backend.as_ref(), app).await
 }

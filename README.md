@@ -86,6 +86,7 @@ cargo build --release
 ### Build Dependencies
 
 If building from source without Nix, you'll need:
+
 - Rust nightly toolchain
 - pkg-config
 - libdbus development headers (e.g., `libdbus-1-dev` on Debian/Ubuntu)
@@ -112,17 +113,17 @@ In demo mode, scanning, adapter info, connect, and disconnect operations are moc
 
 ### Keybindings
 
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Move selection down |
-| `k` / `↑` | Move selection up |
-| `Enter` / `c` | Connect to selected network |
-| `d` | Disconnect from connected network |
-| `r` | Rescan for networks |
-| `i` | Show network details |
-| `h` | Toggle help screen |
-| `Tab` | Toggle password visibility (in password input) |
-| `q` / `Esc` | Quit application |
+| Key           | Action                                         |
+| ------------- | ---------------------------------------------- |
+| `j` / `↓`     | Move selection down                            |
+| `k` / `↑`     | Move selection up                              |
+| `Enter` / `c` | Connect to selected network                    |
+| `d`           | Disconnect from connected network              |
+| `r`           | Rescan for networks                            |
+| `i`           | Show network details                           |
+| `h`           | Toggle help screen                             |
+| `Tab`         | Toggle password visibility (in password input) |
+| `q` / `Esc`   | Quit application                               |
 
 ### Network List Indicators
 
@@ -159,6 +160,7 @@ This command renders the TUI into SVG files under `docs/screenshots/`.
 ### Rust Toolchain
 
 The project uses Rust nightly. The toolchain is specified in `rust-toolchain.toml` and includes:
+
 - clippy
 - rust-analyzer
 - rustfmt

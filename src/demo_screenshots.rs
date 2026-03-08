@@ -80,7 +80,10 @@ pub fn demo_shot_apps(networks: &[WifiNetwork]) -> Vec<(&'static str, App)> {
     .collect()
 }
 
-pub fn write_demo_svgs(output_dir: &Path, networks: &[WifiNetwork]) -> Result<(), Box<dyn Error>> {
+pub fn write_demo_svgs(
+    output_dir: &Path,
+    networks: &[WifiNetwork],
+) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(output_dir)?;
 
     for (file_name, app) in demo_shot_apps(networks) {
@@ -256,7 +259,8 @@ fn result_error_app(networks: &[WifiNetwork]) -> App {
     app.state = AppState::ConnectionResult;
     app.selected_network = Some(network);
     app.connection_success = false;
-    app.connection_error = Some("Failed to find WiFi device in NetworkManager".to_string());
+    app.connection_error =
+        Some("Failed to find WiFi device in NetworkManager".to_string());
     app.status_message = "Connection failed".to_string();
     app
 }
@@ -292,8 +296,9 @@ fn color_to_hex(color: Color, reset: Color) -> String {
 
 fn ansi_index_to_hex(idx: u8) -> String {
     const BASIC: [&str; 16] = [
-        "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
-        "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff",
+        "#000000", "#800000", "#008000", "#808000", "#000080", "#800080",
+        "#008080", "#c0c0c0", "#808080", "#ff0000", "#00ff00", "#ffff00",
+        "#0000ff", "#ff00ff", "#00ffff", "#ffffff",
     ];
 
     if idx < 16 {

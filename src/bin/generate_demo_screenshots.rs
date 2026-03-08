@@ -1,6 +1,9 @@
 use std::{error::Error, path::Path};
 
-use nm_wifi::{backend::default_backend, demo_screenshots::write_demo_svgs_with_backend};
+use nm_wifi::{
+    backend::default_backend,
+    demo_screenshots::write_demo_svgs_with_backend,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
