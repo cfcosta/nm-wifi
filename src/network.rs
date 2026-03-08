@@ -1,5 +1,6 @@
 use std::{collections::HashMap, error::Error, process::Command, time::Duration};
 
+use dbus::arg::{PropMap, RefArg, Variant};
 use networkmanager::{
     NetworkManager,
     devices::{Any, Device, Wireless},
@@ -242,6 +243,109 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     Ok(Vec::new())
 }
 
+fn nm_wifi_proxy(
+    dbus: &dbus::blocking::Connection,
+) -> dbus::blocking::Proxy<'_, &dbus::blocking::Connection> {
+    dbus.with_proxy(
+        "org.freedesktop.NetworkManager",
+        "/org/freedesktop/NetworkManager",
+        Duration::from_secs(10),
+    )
+}
+
+fn variant<T: RefArg + 'static>(value: T) -> Variant<Box<dyn RefArg>> {
+    Variant(Box::new(value))
+}
+
+fn base_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
+    let mut connection = PropMap::new();
+    connection.insert("type".to_string(), variant("802-11-wireless".to_string()));
+    connection.insert("id".to_string(), variant(format!("nm-wifi-{ssid}")));
+
+    let mut wireless = PropMap::new();
+    wireless.insert("ssid".to_string(), variant(ssid.as_bytes().to_vec()));
+    wireless.insert("mode".to_string(), variant("infrastructure".to_string()));
+
+    let mut ipv4 = PropMap::new();
+    ipv4.insert("method".to_string(), variant("auto".to_string()));
+
+    let mut ipv6 = PropMap::new();
+    ipv6.insert("method".to_string(), variant("auto".to_string()));
+
+    let mut settings = HashMap::new();
+    settings.insert("connection", connection);
+    settings.insert("802-11-wireless", wireless);
+    settings.insert("ipv4", ipv4);
+    settings.insert("ipv6", ipv6);
+    settings
+}
+
+fn open_network_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
+    base_connection_settings(ssid)
+}
+
+fn secured_network_connection_settings(ssid: &str, password: &str) -> HashMap<&'static str, PropMap> {
+    let mut settings = base_connection_settings(ssid);
+
+    let mut wireless_security = PropMap::new();
+    wireless_security.insert("key-mgmt".to_string(), variant("wpa-psk".to_string()));
+    wireless_security.insert("psk".to_string(), variant(password.to_string()));
+
+    if let Some(wireless) = settings.get_mut("802-11-wireless") {
+        wireless.insert(
+            "security".to_string(),
+            variant("802-11-wireless-security".to_string()),
+        );
+    }
+
+    settings.insert("802-11-wireless-security", wireless_security);
+    settings
+}
+
+fn connect_via_networkmanager(
+    settings: HashMap<&'static str, PropMap>,
+) -> Result<bool, Box<dyn Error>> {
+    let adapter = match get_wifi_adapter_info_via_nm() {
+        Some(adapter) => adapter,
+        None => return Ok(false),
+    };
+
+    let dbus = dbus::blocking::Connection::new_system()
+        .map_err(|_| "Failed to connect to D-Bus".to_string())?;
+    let proxy = nm_wifi_proxy(&dbus);
+
+    let (device_path,): (dbus::Path<'static>,) = proxy
+        .method_call(
+            "org.freedesktop.NetworkManager",
+            "GetDeviceByIpIface",
+            (adapter.as_str(),),
+        )
+        .map_err(|_| "Failed to find WiFi device in NetworkManager".to_string())?;
+
+    let specific_object = dbus::Path::from("/");
+    let result: Result<(dbus::Path<'static>, dbus::Path<'static>), dbus::Error> = proxy.method_call(
+        "org.freedesktop.NetworkManager",
+        "AddAndActivateConnection",
+        (settings, device_path, specific_object),
+    );
+
+    match result {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
+fn connect_open_network_via_networkmanager(network: &WifiNetwork) -> Result<bool, Box<dyn Error>> {
+    connect_via_networkmanager(open_network_connection_settings(&network.ssid))
+}
+
+fn connect_psk_network_via_networkmanager(
+    network: &WifiNetwork,
+    password: &str,
+) -> Result<bool, Box<dyn Error>> {
+    connect_via_networkmanager(secured_network_connection_settings(&network.ssid, password))
+}
+
 fn connect_command_args(
     network: &WifiNetwork,
     password: Option<&str>,
@@ -269,21 +373,37 @@ pub async fn connect_to_network(
     network: &WifiNetwork,
     password: Option<&str>,
 ) -> Result<(), Box<dyn Error>> {
-    match connect_backend_for(network, password) {
-        ConnectionBackend::NetworkManager | ConnectionBackend::NmcliFallback => {
-            let args = connect_command_args(network, password)?;
-            let output = Command::new("nmcli")
-                .args(&args)
-                .output()
-                .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
-
-            if output.status.success() {
-                Ok(())
-            } else {
-                let error_msg = String::from_utf8_lossy(&output.stderr);
-                Err(format!("nmcli failed: {}", error_msg).into())
+    if matches!(
+        connect_backend_for(network, password),
+        ConnectionBackend::NetworkManager
+    ) {
+        match classify_security(network, password) {
+            SecurityKind::Open if connect_open_network_via_networkmanager(network)? => {
+                return Ok(());
             }
+            SecurityKind::WpaPsk => {
+                if let Some(password) = password
+                    && connect_psk_network_via_networkmanager(network, password)?
+                {
+                    return Ok(());
+                }
+            }
+            SecurityKind::Unsupported => {}
+            SecurityKind::Open => {}
         }
+    }
+
+    let args = connect_command_args(network, password)?;
+    let output = Command::new("nmcli")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("nmcli failed: {}", error_msg).into())
     }
 }
 
@@ -359,8 +479,10 @@ mod tests {
         connect_backend_for,
         connect_command_args,
         disconnect_backend_for,
+        open_network_connection_settings,
         parse_any_wifi_device,
         parse_connected_wifi_device,
+        secured_network_connection_settings,
         should_disconnect_device,
     };
     use crate::types::WifiNetwork;
@@ -436,6 +558,30 @@ mod tests {
         assert_eq!(
             connect_backend_for(&network, None),
             ConnectionBackend::NetworkManager
+        );
+    }
+
+    #[test]
+    fn open_network_settings_include_wireless_and_ip_defaults() {
+        let settings = open_network_connection_settings("cafe");
+
+        assert!(settings.contains_key("connection"));
+        assert!(settings.contains_key("802-11-wireless"));
+        assert!(settings.contains_key("ipv4"));
+        assert!(settings.contains_key("ipv6"));
+    }
+
+    #[test]
+    fn psk_network_settings_include_wireless_security() {
+        let settings = secured_network_connection_settings("home", "hunter2");
+
+        assert!(settings.contains_key("802-11-wireless-security"));
+        assert_eq!(
+            settings
+                .get("802-11-wireless")
+                .and_then(|wireless| wireless.get("security"))
+                .and_then(|value| value.0.as_str()),
+            Some("802-11-wireless-security")
         );
     }
 
