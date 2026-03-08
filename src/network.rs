@@ -24,7 +24,7 @@ fn contextual_error(context: &str, error: impl std::fmt::Display) -> Box<dyn Err
 }
 
 #[cfg(feature = "demo")]
-fn demo_networks() -> Vec<WifiNetwork> {
+pub fn demo_networks() -> Vec<WifiNetwork> {
     vec![
         WifiNetwork {
             ssid: "CatCat".to_string(),
