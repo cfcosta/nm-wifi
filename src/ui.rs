@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -132,7 +132,12 @@ fn render_network_list_background(
         )
         .highlight_symbol("► ");
 
-    f.render_stateful_widget(list, area, &mut app.list_state.clone());
+    let mut list_state = ListState::default();
+    if !app.networks.is_empty() {
+        list_state.select(Some(app.selected_index.min(app.networks.len() - 1)));
+    }
+
+    f.render_stateful_widget(list, area, &mut list_state);
 }
 
 pub fn render_header(f: &mut Frame, app: &App, area: Rect) {

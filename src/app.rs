@@ -14,7 +14,7 @@ use crate::{
         get_wifi_adapter_name,
         scan_wifi_networks,
     },
-    types::{App, AppState},
+    types::{App, AppState, OperationKind},
     ui::ui,
 };
 
@@ -48,11 +48,7 @@ pub fn begin_disconnect_for_selected_network(app: &mut App) {
         .filter(|n| n.connected)
         .cloned()
     {
-        app.is_disconnect_operation = true;
-        app.state = AppState::Disconnecting;
-        app.connection_start_time = Some(Instant::now());
-        app.status_message = format!("Disconnecting from {}...", network.ssid);
-        app.selected_network = Some(network);
+        app.begin_operation(network, OperationKind::Disconnect);
     }
 }
 
@@ -66,7 +62,7 @@ async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
                 KeyCode::Char('j') | KeyCode::Down if !app.networks.is_empty() => app.next(),
                 KeyCode::Char('k') | KeyCode::Up if !app.networks.is_empty() => app.previous(),
                 KeyCode::Enter | KeyCode::Char('c') if !app.networks.is_empty() => {
-                    app.select_network()
+                    app.activate_selected_network()
                 }
                 _ => {}
             }
@@ -94,7 +90,7 @@ async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
         if app.selected_network.is_some() {
             app.update_selection_after_rescan();
         } else {
-            app.list_state.select(Some(0));
+            app.selected_index = 0;
         }
     }
 
@@ -129,18 +125,9 @@ async fn handle_connection_state(app: &mut App) -> Result<(), Box<dyn Error>> {
     };
 
     match connect_to_network(request).await {
-        Ok(_) => {
-            app.connection_success = true;
-            app.connection_error = None;
-            app.status_message = "Connected successfully!".to_string();
-        }
-        Err(error) => {
-            app.connection_success = false;
-            app.connection_error = Some(error.to_string());
-            app.status_message = "Connection failed".to_string();
-        }
+        Ok(_) => app.finish_operation(true, None),
+        Err(error) => app.finish_operation(false, Some(error.to_string())),
     }
-    app.state = AppState::ConnectionResult;
     Ok(())
 }
 
@@ -155,18 +142,9 @@ async fn handle_disconnection_state(app: &mut App) -> Result<(), Box<dyn Error>>
     }
 
     match disconnect_from_network(app.selected_network.as_ref().unwrap()).await {
-        Ok(_) => {
-            app.connection_success = true;
-            app.connection_error = None;
-            app.status_message = "Disconnected successfully!".to_string();
-        }
-        Err(error) => {
-            app.connection_success = false;
-            app.connection_error = Some(error.to_string());
-            app.status_message = "Disconnection failed".to_string();
-        }
+        Ok(_) => app.finish_operation(true, None),
+        Err(error) => app.finish_operation(false, Some(error.to_string())),
     }
-    app.state = AppState::ConnectionResult;
     Ok(())
 }
 
@@ -176,7 +154,7 @@ fn handle_keypress(app: &mut App, key: KeyCode) {
             KeyCode::Char('q') | KeyCode::Esc => app.quit(),
             KeyCode::Char('j') | KeyCode::Down => app.next(),
             KeyCode::Char('k') | KeyCode::Up => app.previous(),
-            KeyCode::Enter | KeyCode::Char('c') => app.select_network(),
+            KeyCode::Enter | KeyCode::Char('c') => app.activate_selected_network(),
             KeyCode::Char('d') => begin_disconnect_for_selected_network(app),
             KeyCode::Char('r') => app.start_scan(),
             KeyCode::Char('h') => app.state = AppState::Help,
@@ -296,7 +274,6 @@ mod tests {
         app.state = AppState::NetworkList;
         app.networks = vec![network("guest", false), network("home", true)];
         app.selected_index = 1;
-        app.list_state.select(Some(1));
 
         begin_disconnect_for_selected_network(&mut app);
 
@@ -318,7 +295,6 @@ mod tests {
         app.state = AppState::NetworkList;
         app.networks = vec![network("guest", false), network("home", true)];
         app.selected_index = 0;
-        app.list_state.select(Some(0));
 
         begin_disconnect_for_selected_network(&mut app);
 

@@ -147,7 +147,6 @@ fn base_app(networks: &[WifiNetwork]) -> App {
     app.networks = networks.to_vec();
     app.network_count = app.networks.len();
     app.adapter_name = Some("demo-wlan0".to_string());
-    app.list_state.select(Some(0));
     app.selected_index = 0;
     app.status_message = if networks.is_empty() {
         "Scanning for WiFi networks...".to_string()
@@ -177,7 +176,6 @@ fn details_app(networks: &[WifiNetwork]) -> App {
     let mut app = base_app(networks);
     app.state = AppState::NetworkDetails;
     app.selected_index = 1;
-    app.list_state.select(Some(1));
     app
 }
 

@@ -25,11 +25,9 @@ fn types_selection_stays_in_sync_in_integration_tests() {
 
     app.next();
     assert_eq!(app.selected_index, 1);
-    assert_eq!(app.list_state.selected(), Some(1));
 
     app.previous();
     assert_eq!(app.selected_index, 0);
-    assert_eq!(app.list_state.selected(), Some(0));
 }
 
 #[test]

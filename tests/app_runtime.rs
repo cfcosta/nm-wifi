@@ -33,7 +33,6 @@ fn disconnect_shortcut_uses_current_selected_connected_network() {
     app.state = AppState::NetworkList;
     app.networks = vec![network("guest", false), network("home", true)];
     app.selected_index = 1;
-    app.list_state.select(Some(1));
 
     begin_disconnect_for_selected_network(&mut app);
 
@@ -54,7 +53,6 @@ fn disconnect_shortcut_ignores_unconnected_selected_network() {
     app.state = AppState::NetworkList;
     app.networks = vec![network("guest", false), network("home", true)];
     app.selected_index = 0;
-    app.list_state.select(Some(0));
 
     begin_disconnect_for_selected_network(&mut app);
 

@@ -1,7 +1,5 @@
 use std::time::Instant;
 
-use ratatui::widgets::ListState;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WifiSecurity {
     Open,
@@ -54,10 +52,15 @@ pub enum AppState {
     NetworkDetails,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationKind {
+    Connect,
+    Disconnect,
+}
+
 pub struct App {
     pub networks: Vec<WifiNetwork>,
     pub selected_index: usize,
-    pub list_state: ListState,
     pub state: AppState,
     pub password_input: String,
     pub selected_network: Option<WifiNetwork>,
@@ -82,17 +85,12 @@ impl Default for App {
 impl App {
     fn set_selected_index(&mut self, index: usize) {
         self.selected_index = index;
-        self.list_state.select(Some(index));
     }
 
     pub fn new() -> App {
-        let mut list_state = ListState::default();
-        list_state.select(Some(0));
-
         App {
             networks: Vec::new(),
             selected_index: 0,
-            list_state,
             state: AppState::Scanning,
             password_input: String::new(),
             selected_network: None,
@@ -111,15 +109,10 @@ impl App {
 
     pub fn next(&mut self) {
         if !self.networks.is_empty() {
-            let i = match self.list_state.selected() {
-                Some(i) => {
-                    if i >= self.networks.len() - 1 {
-                        0
-                    } else {
-                        i + 1
-                    }
-                }
-                None => 0,
+            let i = if self.selected_index >= self.networks.len() - 1 {
+                0
+            } else {
+                self.selected_index + 1
             };
             self.set_selected_index(i);
         }
@@ -127,15 +120,10 @@ impl App {
 
     pub fn previous(&mut self) {
         if !self.networks.is_empty() {
-            let i = match self.list_state.selected() {
-                Some(i) => {
-                    if i == 0 {
-                        self.networks.len() - 1
-                    } else {
-                        i - 1
-                    }
-                }
-                None => 0,
+            let i = if self.selected_index == 0 {
+                self.networks.len() - 1
+            } else {
+                self.selected_index - 1
             };
             self.set_selected_index(i);
         }
@@ -145,31 +133,40 @@ impl App {
         self.networks.get(self.selected_index)
     }
 
-    pub fn select_network(&mut self) {
+    pub fn begin_operation(&mut self, network: WifiNetwork, operation: OperationKind) {
+        self.selected_network = Some(network.clone());
+        self.is_disconnect_operation = operation == OperationKind::Disconnect;
+        self.connection_start_time = Some(Instant::now());
+        self.state = match operation {
+            OperationKind::Connect => AppState::Connecting,
+            OperationKind::Disconnect => AppState::Disconnecting,
+        };
+        self.status_message = match operation {
+            OperationKind::Connect => {
+                format!("Connecting to {}...", network.ssid)
+            }
+            OperationKind::Disconnect => {
+                format!("Disconnecting from {}...", network.ssid)
+            }
+        };
+    }
+
+    pub fn activate_selected_network(&mut self) {
         let network = self.selected_network_in_list().cloned();
 
-        match &network {
+        match network {
             Some(network) if network.connected => {
-                self.state = AppState::Disconnecting;
-                self.connection_start_time = Some(Instant::now());
-                self.status_message = format!("Disconnecting from {}...", network.ssid);
+                self.begin_operation(network, OperationKind::Disconnect);
             }
             Some(network) if network.is_secured() => {
                 self.state = AppState::PasswordInput;
                 self.password_input.clear();
+                self.selected_network = Some(network);
             }
             Some(network) => {
-                self.state = AppState::Connecting;
-                self.connection_start_time = Some(Instant::now());
-                self.status_message = format!("Connecting to {}...", network.ssid);
+                self.begin_operation(network, OperationKind::Connect);
             }
             None => {}
-        }
-
-        self.is_disconnect_operation = self.state == AppState::Disconnecting;
-
-        if network.is_some() {
-            self.selected_network = network;
         }
     }
 
@@ -182,15 +179,25 @@ impl App {
     }
 
     pub fn confirm_password(&mut self) {
-        self.state = AppState::Connecting;
-        self.connection_start_time = Some(Instant::now());
-        if let Some(network) = &self.selected_network {
-            self.status_message = format!("Connecting to {}...", network.ssid);
+        if let Some(network) = self.selected_network.clone() {
+            self.begin_operation(network, OperationKind::Connect);
         }
     }
 
     pub fn quit(&mut self) {
         self.should_quit = true;
+    }
+
+    pub fn finish_operation(&mut self, succeeded: bool, error: Option<String>) {
+        self.connection_success = succeeded;
+        self.connection_error = error;
+        self.status_message = match (self.is_disconnect_operation, succeeded) {
+            (true, true) => "Disconnected successfully!".to_string(),
+            (true, false) => "Disconnection failed".to_string(),
+            (false, true) => "Connected successfully!".to_string(),
+            (false, false) => "Connection failed".to_string(),
+        };
+        self.state = AppState::ConnectionResult;
     }
 
     pub fn back_to_network_list(&mut self) {
@@ -260,12 +267,10 @@ mod tests {
         let mut app = App::new();
         app.networks = vec![connected_network("home"), connected_network("guest")];
         app.selected_index = 1;
-        app.list_state.select(Some(1));
 
         app.next();
 
         assert_eq!(app.selected_index, 0);
-        assert_eq!(app.list_state.selected(), Some(0));
     }
 
     #[test]
@@ -273,12 +278,10 @@ mod tests {
         let mut app = App::new();
         app.networks = vec![connected_network("home"), connected_network("guest")];
         app.selected_index = 0;
-        app.list_state.select(Some(0));
 
         app.previous();
 
         assert_eq!(app.selected_index, 1);
-        assert_eq!(app.list_state.selected(), Some(1));
     }
 
     #[test]
@@ -287,7 +290,7 @@ mod tests {
         app.state = AppState::NetworkList;
         app.networks = vec![connected_network("home")];
 
-        app.select_network();
+        app.activate_selected_network();
 
         assert!(matches!(app.state, AppState::Disconnecting));
         assert!(app.connection_start_time.is_some());
@@ -302,9 +305,8 @@ mod tests {
             network("office", WifiSecurity::WpaPsk, false),
         ];
         app.selected_index = 1;
-        app.list_state.select(Some(1));
 
-        app.select_network();
+        app.activate_selected_network();
 
         assert!(matches!(app.state, AppState::PasswordInput));
         assert_eq!(
@@ -323,7 +325,6 @@ mod tests {
         app.network_count = 3;
         app.last_scan_time = Some(Instant::now());
         app.selected_index = 0;
-        app.list_state.select(Some(0));
 
         app.start_scan();
 
@@ -332,7 +333,6 @@ mod tests {
         assert_eq!(app.network_count, 0);
         assert!(app.last_scan_time.is_none());
         assert_eq!(app.selected_index, 0);
-        assert_eq!(app.list_state.selected(), Some(0));
     }
 
     #[test]
@@ -340,12 +340,10 @@ mod tests {
         let mut app = App::new();
         app.networks = vec![connected_network("home"), connected_network("guest")];
         app.selected_index = 1;
-        app.list_state.select(Some(1));
 
         app.start_scan();
 
         assert_eq!(app.selected_index, 0);
-        assert_eq!(app.list_state.selected(), Some(app.selected_index));
     }
 
     #[test]
@@ -357,7 +355,6 @@ mod tests {
         app.update_selection_after_rescan();
 
         assert_eq!(app.selected_index, 1);
-        assert_eq!(app.list_state.selected(), Some(1));
         assert!(app.selected_network.is_none());
     }
 
@@ -365,14 +362,12 @@ mod tests {
     fn update_selection_after_rescan_resets_to_first_when_selected_ssid_disappears() {
         let mut app = App::new();
         app.selected_index = 1;
-        app.list_state.select(Some(1));
         app.networks = vec![connected_network("guest"), connected_network("cafe")];
         app.selected_network = Some(connected_network("home"));
 
         app.update_selection_after_rescan();
 
         assert_eq!(app.selected_index, 0);
-        assert_eq!(app.list_state.selected(), Some(0));
         assert!(app.selected_network.is_none());
     }
 
