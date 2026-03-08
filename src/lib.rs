@@ -1,5 +1,6 @@
 pub mod app;
 pub mod app_state;
+pub mod backend;
 pub mod demo_screenshots;
 pub mod network;
 pub mod theme;

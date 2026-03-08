@@ -68,24 +68,28 @@ fn public_ui_helpers_remain_usable_from_integration_tests() {
 #[cfg(feature = "demo")]
 #[tokio::test]
 async fn demo_network_module_scans_and_connects_in_integration_tests() {
-    use nm_wifi::network::{
-        ConnectionRequest,
-        connect_to_network,
-        demo_networks,
-        scan_wifi_networks,
+    use nm_wifi::{
+        backend::{CurrentNetworkBackend, NetworkBackend},
+        network::{ConnectionRequest, demo_networks},
     };
 
-    let networks = scan_wifi_networks().await.expect("demo scan succeeds");
+    let backend = CurrentNetworkBackend;
+    let networks = backend.scan_networks().await.expect("demo scan succeeds");
     assert!(networks.iter().any(|network| network.ssid == "CatCat"));
+    assert_eq!(
+        backend.adapter_name().expect("adapter query succeeds"),
+        Some("demo-wlan0".to_string())
+    );
 
     let network = demo_networks()
         .into_iter()
         .find(|network| network.security == WifiSecurity::WpaSae)
         .expect("demo WPA3 network exists");
 
-    connect_to_network(ConnectionRequest::Secured {
-        network: &network,
-        password: "AcerolaAcai",
-    })
-    .expect("demo connect succeeds");
+    backend
+        .connect(ConnectionRequest::Secured {
+            network: &network,
+            password: "AcerolaAcai",
+        })
+        .expect("demo connect succeeds");
 }
