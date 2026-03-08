@@ -27,6 +27,30 @@ use ratatui::{
 use types::{App, AppState};
 use ui::ui;
 
+struct CleanupGuard<F: FnOnce()> {
+    cleanup: Option<F>,
+}
+
+impl<F: FnOnce()> CleanupGuard<F> {
+    fn new(cleanup: F) -> Self {
+        Self {
+            cleanup: Some(cleanup),
+        }
+    }
+
+    fn dismiss(mut self) {
+        self.cleanup = None;
+    }
+}
+
+impl<F: FnOnce()> Drop for CleanupGuard<F> {
+    fn drop(&mut self) {
+        if let Some(cleanup) = self.cleanup.take() {
+            cleanup();
+        }
+    }
+}
+
 async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<(), Box<dyn Error>> {
     loop {
         terminal.draw(|f| ui(f, &app))?;
@@ -255,23 +279,51 @@ async fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+
+    let cleanup_guard = CleanupGuard::new(|| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+    });
+
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
     let app = App::new();
     let res = run_app(&mut terminal, app).await;
 
+    terminal.show_cursor()?;
+    cleanup_guard.dismiss();
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
     )?;
-    terminal.show_cursor()?;
 
     if let Err(err) = res {
         println!("{:?}", err)
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
+    use super::CleanupGuard;
+
+    #[test]
+    fn cleanup_guard_runs_cleanup_on_drop() {
+        let cleaned = Rc::new(RefCell::new(false));
+        let cleaned_for_drop = Rc::clone(&cleaned);
+
+        {
+            let _guard = CleanupGuard::new(move || {
+                *cleaned_for_drop.borrow_mut() = true;
+            });
+        }
+
+        assert!(*cleaned.borrow());
+    }
 }
