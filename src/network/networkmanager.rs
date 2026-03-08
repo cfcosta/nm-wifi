@@ -306,13 +306,13 @@ pub fn connect_to_network(request: ConnectionRequest<'_>) -> Result<(), Box<dyn 
             }
             connect_via_networkmanager(open_network_connection_settings(&network.ssid))
         }
-        ConnectionRequest::Secured { password, .. } => {
-            match classify_security(network, Some(password)) {
+        ConnectionRequest::Secured { passphrase, .. } => {
+            match classify_security(network, Some(passphrase)) {
                 SecurityKind::WpaPsk => connect_via_networkmanager(
-                    secured_network_connection_settings(&network.ssid, password, "wpa-psk"),
+                    secured_network_connection_settings(&network.ssid, passphrase, "wpa-psk"),
                 ),
                 SecurityKind::WpaSae => connect_via_networkmanager(
-                    secured_network_connection_settings(&network.ssid, password, "sae"),
+                    secured_network_connection_settings(&network.ssid, passphrase, "sae"),
                 ),
                 SecurityKind::Open => {
                     Err("Open networks should not be activated with a password request".into())

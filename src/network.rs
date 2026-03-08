@@ -18,7 +18,7 @@ pub enum ConnectionRequest<'a> {
     },
     Secured {
         network: &'a WifiNetwork,
-        password: &'a str,
+        passphrase: &'a str,
     },
 }
 
@@ -362,7 +362,7 @@ mod tests {
 
         let result = connect_to_network(ConnectionRequest::Secured {
             network: &network,
-            password: "AcerolaAcai",
+            passphrase: "AcerolaAcai",
         });
 
         assert!(result.is_ok());
@@ -378,7 +378,7 @@ mod tests {
 
         let result = connect_to_network(ConnectionRequest::Secured {
             network: &network,
-            password: "wrong-password",
+            passphrase: "wrong-password",
         });
 
         assert_eq!(

@@ -93,7 +93,7 @@ pub fn complete_connection_with_backend(
     let request = if network.security.is_secured() {
         ConnectionRequest::Secured {
             network,
-            password: app.password_input.as_str(),
+            passphrase: app.password_input.as_str(),
         }
     } else {
         ConnectionRequest::Open { network }

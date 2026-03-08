@@ -41,7 +41,10 @@ pub fn demo_networks() -> Vec<WifiNetwork> {
 fn demo_connect(request: ConnectionRequest<'_>) -> Result<(), Box<dyn Error>> {
     let (network, password) = match request {
         ConnectionRequest::Open { network } => (network, None),
-        ConnectionRequest::Secured { network, password } => (network, Some(password)),
+        ConnectionRequest::Secured {
+            network,
+            passphrase,
+        } => (network, Some(passphrase)),
     };
 
     match (network.ssid.as_str(), network.security, password) {

@@ -90,7 +90,7 @@ async fn demo_network_module_scans_and_connects_in_integration_tests() {
     backend
         .connect(ConnectionRequest::Secured {
             network: &network,
-            password: "AcerolaAcai",
+            passphrase: "AcerolaAcai",
         })
         .expect("demo connect succeeds");
 }
