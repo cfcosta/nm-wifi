@@ -87,7 +87,7 @@
 
           programs = {
             nixfmt.enable = true;
-            prettier.enable = true;
+            oxfmt.enable = true;
             rustfmt = {
               enable = true;
               package = rust;
