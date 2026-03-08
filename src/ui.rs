@@ -331,7 +331,7 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
 }
 
 pub fn render_network_details(f: &mut Frame, app: &App) {
-    if let Some(network) = app.networks.get(app.selected_index) {
+    if let Some(network) = app.selected_network_in_list() {
         let popup_area = centered_rect(60, 70, f.area());
         f.render_widget(Clear, popup_area);
 
