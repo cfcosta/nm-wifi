@@ -18,18 +18,64 @@ pub const HEIGHT: u16 = 36;
 const CELL_WIDTH: u32 = 10;
 const CELL_HEIGHT: u32 = 20;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DemoScreen {
+    Scanning,
+    NetworkList,
+    Help,
+    Details,
+    Password,
+    Connecting,
+    Disconnecting,
+    ResultSuccess,
+    ResultError,
+}
+
+impl DemoScreen {
+    pub fn file_name(self) -> &'static str {
+        match self {
+            Self::Scanning => "scanning.svg",
+            Self::NetworkList => "network-list.svg",
+            Self::Help => "help.svg",
+            Self::Details => "details.svg",
+            Self::Password => "password.svg",
+            Self::Connecting => "connecting.svg",
+            Self::Disconnecting => "disconnecting.svg",
+            Self::ResultSuccess => "result-success.svg",
+            Self::ResultError => "result-error.svg",
+        }
+    }
+}
+
+pub fn build_demo_screen(screen: DemoScreen, networks: &[WifiNetwork]) -> App {
+    match screen {
+        DemoScreen::Scanning => scanning_app(),
+        DemoScreen::NetworkList => network_list_app(networks),
+        DemoScreen::Help => help_app(networks),
+        DemoScreen::Details => details_app(networks),
+        DemoScreen::Password => password_app(networks),
+        DemoScreen::Connecting => connecting_app(networks),
+        DemoScreen::Disconnecting => disconnecting_app(networks),
+        DemoScreen::ResultSuccess => result_success_app(networks),
+        DemoScreen::ResultError => result_error_app(networks),
+    }
+}
+
 pub fn demo_shot_apps(networks: &[WifiNetwork]) -> Vec<(&'static str, App)> {
-    vec![
-        ("scanning.svg", scanning_app()),
-        ("network-list.svg", network_list_app(networks)),
-        ("help.svg", help_app(networks)),
-        ("details.svg", details_app(networks)),
-        ("password.svg", password_app(networks)),
-        ("connecting.svg", connecting_app(networks)),
-        ("disconnecting.svg", disconnecting_app(networks)),
-        ("result-success.svg", result_success_app(networks)),
-        ("result-error.svg", result_error_app(networks)),
+    [
+        DemoScreen::Scanning,
+        DemoScreen::NetworkList,
+        DemoScreen::Help,
+        DemoScreen::Details,
+        DemoScreen::Password,
+        DemoScreen::Connecting,
+        DemoScreen::Disconnecting,
+        DemoScreen::ResultSuccess,
+        DemoScreen::ResultError,
     ]
+    .into_iter()
+    .map(|screen| (screen.file_name(), build_demo_screen(screen, networks)))
+    .collect()
 }
 
 pub fn write_demo_svgs(output_dir: &Path, networks: &[WifiNetwork]) -> Result<(), Box<dyn Error>> {

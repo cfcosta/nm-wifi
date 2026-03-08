@@ -108,6 +108,33 @@ pub fn create_network_list_item<'a>(network: &WifiNetwork) -> ListItem<'a> {
     ]))
 }
 
+fn render_network_list_background(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    title: Option<Line<'static>>,
+) {
+    let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
+
+    let mut block = Block::default().style(Style::default().bg(CatppuccinColors::BASE));
+    if let Some(title) = title {
+        block = block.title(title);
+    }
+    block = block.borders(Borders::ALL);
+
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(
+            Style::default()
+                .bg(CatppuccinColors::SURFACE0)
+                .fg(CatppuccinColors::TEXT)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("► ");
+
+    f.render_stateful_widget(list, area, &mut app.list_state.clone());
+}
+
 pub fn render_header(f: &mut Frame, app: &App, area: Rect) {
     let header_chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -680,10 +707,6 @@ pub fn ui(f: &mut Frame, app: &App) {
 
                 f.render_widget(scanning_modal, popup_area);
             } else {
-                // Show networks as they appear during scanning
-                let items: Vec<ListItem> =
-                    app.networks.iter().map(create_network_list_item).collect();
-
                 let scanning_title = Line::from(vec![
                     Span::styled("🔍 ", Style::default().fg(CatppuccinColors::YELLOW)),
                     Span::styled(
@@ -694,27 +717,10 @@ pub fn ui(f: &mut Frame, app: &App) {
                     ),
                 ]);
 
-                let list = List::new(items)
-                    .block(
-                        Block::default()
-                            .style(Style::default().bg(CatppuccinColors::BASE))
-                            .title(scanning_title)
-                            .borders(Borders::ALL),
-                    )
-                    .highlight_style(
-                        Style::default()
-                            .bg(CatppuccinColors::SURFACE0)
-                            .fg(CatppuccinColors::TEXT)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .highlight_symbol("► ");
-
-                f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
+                render_network_list_background(f, app, chunks[1], Some(scanning_title));
             }
         }
         AppState::NetworkList => {
-            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
-
             let list_title = Line::from(vec![
                 Span::styled("📶 ", Style::default().fg(CatppuccinColors::BLUE)),
                 Span::styled(
@@ -735,109 +741,29 @@ pub fn ui(f: &mut Frame, app: &App) {
                 ),
             ]);
 
-            let list = List::new(items)
-                .block(
-                    Block::default()
-                        .title(list_title)
-                        .borders(Borders::ALL)
-                        .style(Style::default().bg(CatppuccinColors::BASE)),
-                )
-                .highlight_style(
-                    Style::default()
-                        .bg(CatppuccinColors::SURFACE0)
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("► ");
-
-            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
+            render_network_list_background(f, app, chunks[1], Some(list_title));
         }
         AppState::Help => {
             render_help_screen(f, app, chunks[1]);
         }
         AppState::NetworkDetails => {
-            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
-
-            let list = List::new(items)
-                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
-                .highlight_style(
-                    Style::default()
-                        .bg(CatppuccinColors::SURFACE0)
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("► ");
-
-            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
-
+            render_network_list_background(f, app, chunks[1], None);
             render_network_details(f, app);
         }
         AppState::PasswordInput => {
-            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
-
-            let list = List::new(items)
-                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
-                .highlight_style(
-                    Style::default()
-                        .bg(CatppuccinColors::SURFACE0)
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("► ");
-
-            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
-
+            render_network_list_background(f, app, chunks[1], None);
             render_enhanced_password_modal(f, app);
         }
         AppState::Connecting => {
-            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
-
-            let list = List::new(items)
-                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
-                .highlight_style(
-                    Style::default()
-                        .bg(CatppuccinColors::SURFACE0)
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("► ");
-
-            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
-
+            render_network_list_background(f, app, chunks[1], None);
             render_enhanced_connecting_modal(f, app);
         }
         AppState::Disconnecting => {
-            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
-
-            let list = List::new(items)
-                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
-                .highlight_style(
-                    Style::default()
-                        .bg(CatppuccinColors::SURFACE0)
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("► ");
-
-            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
-
+            render_network_list_background(f, app, chunks[1], None);
             render_enhanced_disconnecting_modal(f, app);
         }
         AppState::ConnectionResult => {
-            let items: Vec<ListItem> = app.networks.iter().map(create_network_list_item).collect();
-
-            let list = List::new(items)
-                .block(Block::default().style(Style::default().bg(CatppuccinColors::BASE)))
-                .highlight_style(
-                    Style::default()
-                        .bg(CatppuccinColors::SURFACE0)
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("► ");
-
-            f.render_stateful_widget(list, chunks[1], &mut app.list_state.clone());
-
+            render_network_list_background(f, app, chunks[1], None);
             render_enhanced_result_modal(f, app);
         }
     }
