@@ -1,7 +1,10 @@
+#[cfg(any(test, not(feature = "demo")))]
+use std::collections::HashMap;
+use std::error::Error;
 #[cfg(not(feature = "demo"))]
 use std::time::Duration;
-use std::{collections::HashMap, error::Error};
 
+#[cfg(any(test, not(feature = "demo")))]
 use dbus::arg::{PropMap, RefArg, Variant};
 #[cfg(not(feature = "demo"))]
 use networkmanager::{
@@ -310,10 +313,12 @@ fn nm_wifi_proxy(
     )
 }
 
+#[cfg(any(test, not(feature = "demo")))]
 fn variant<T: RefArg + 'static>(value: T) -> Variant<Box<dyn RefArg>> {
     Variant(Box::new(value))
 }
 
+#[cfg(any(test, not(feature = "demo")))]
 fn base_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
     let mut connection = PropMap::new();
     connection.insert("type".to_string(), variant("802-11-wireless".to_string()));
@@ -337,10 +342,12 @@ fn base_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
     settings
 }
 
+#[cfg(any(test, not(feature = "demo")))]
 fn open_network_connection_settings(ssid: &str) -> HashMap<&'static str, PropMap> {
     base_connection_settings(ssid)
 }
 
+#[cfg(any(test, not(feature = "demo")))]
 fn secured_network_connection_settings(
     ssid: &str,
     password: &str,
@@ -538,7 +545,9 @@ mod tests {
     #[cfg(feature = "demo")]
     use super::{connect_to_network, demo_networks, scan_wifi_networks};
     use super::{open_network_connection_settings, secured_network_connection_settings};
-    use crate::types::{WifiNetwork, WifiSecurity};
+    #[cfg(not(feature = "demo"))]
+    use crate::types::WifiNetwork;
+    use crate::types::WifiSecurity;
 
     #[cfg(not(feature = "demo"))]
     #[test]
@@ -569,6 +578,7 @@ mod tests {
         assert!(!should_disconnect_device(None, "home"));
     }
 
+    #[cfg(not(feature = "demo"))]
     fn network(security: WifiSecurity) -> WifiNetwork {
         WifiNetwork {
             ssid: "test".to_string(),
