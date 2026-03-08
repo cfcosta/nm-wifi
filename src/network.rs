@@ -8,10 +8,6 @@ use tokio::time::sleep;
 
 use crate::types::WifiNetwork;
 
-fn managed_connection_name(ssid: &str) -> String {
-    format!("nm-wifi-{}", ssid)
-}
-
 pub async fn get_connected_ssid() -> Option<String> {
     let output = Command::new("nmcli")
         .args(["-t", "-f", "ACTIVE,SSID", "dev", "wifi"])
@@ -156,95 +152,44 @@ pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     Ok(Vec::new())
 }
 
-pub async fn connect_to_network(
+fn connect_command_args(
     network: &WifiNetwork,
     password: Option<&str>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Vec<String>, Box<dyn Error>> {
     if network.secured && password.is_none() {
         return Err("Password required for secured network".into());
     }
 
-    // Use `nmcli` command line tool for connection
-    let mut cmd = Command::new("nmcli");
+    let mut args = vec![
+        "device".to_string(),
+        "wifi".to_string(),
+        "connect".to_string(),
+        network.ssid.clone(),
+    ];
 
-    if network.secured {
-        let connection_name = managed_connection_name(&network.ssid);
+    if let Some(password) = password {
+        args.push("password".to_string());
+        args.push(password.to_string());
+    }
 
-        // For secured networks, use the connection add approach
-        cmd.args([
-            "connection",
-            "add",
-            "type",
-            "wifi",
-            "con-name",
-            &connection_name,
-            "ssid",
-            &network.ssid,
-            "wifi-sec.key-mgmt",
-            "wpa-psk",
-            "wifi-sec.psk",
-            password.unwrap(),
-        ]);
+    Ok(args)
+}
 
-        let output = cmd
-            .output()
-            .map_err(|e| format!("Failed to execute nmcli add: {}", e))?;
+pub async fn connect_to_network(
+    network: &WifiNetwork,
+    password: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
+    let args = connect_command_args(network, password)?;
+    let output = Command::new("nmcli")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
 
-        if !output.status.success() {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
-
-            // If connection already exists, try to modify it
-            if error_msg.contains("already exists") {
-                let mut modify_cmd = Command::new("nmcli");
-                modify_cmd.args([
-                    "connection",
-                    "modify",
-                    &connection_name,
-                    "wifi-sec.psk",
-                    password.unwrap(),
-                ]);
-
-                let modify_output = modify_cmd
-                    .output()
-                    .map_err(|e| format!("Failed to execute nmcli modify: {}", e))?;
-
-                if !modify_output.status.success() {
-                    let modify_error = String::from_utf8_lossy(&modify_output.stderr);
-                    return Err(format!("nmcli modify failed: {}", modify_error).into());
-                }
-            } else {
-                return Err(format!("nmcli add failed: {}", error_msg).into());
-            }
-        }
-
-        // Now activate the connection
-        let mut activate_cmd = Command::new("nmcli");
-        activate_cmd.args(["connection", "up", &connection_name]);
-
-        let activate_output = activate_cmd
-            .output()
-            .map_err(|e| format!("Failed to execute nmcli up: {}", e))?;
-
-        if activate_output.status.success() {
-            Ok(())
-        } else {
-            let error_msg = String::from_utf8_lossy(&activate_output.stderr);
-            Err(format!("nmcli activation failed: {}", error_msg).into())
-        }
+    if output.status.success() {
+        Ok(())
     } else {
-        // For open networks, use the simple connect command
-        cmd.args(["device", "wifi", "connect", &network.ssid]);
-
-        let output = cmd
-            .output()
-            .map_err(|e| format!("Failed to execute nmcli: {}", e))?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
-            Err(format!("nmcli failed: {}", error_msg).into())
-        }
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("nmcli failed: {}", error_msg).into())
     }
 }
 
@@ -268,7 +213,8 @@ pub async fn disconnect_from_network(_network: &WifiNetwork) -> Result<(), Box<d
 
 #[cfg(test)]
 mod tests {
-    use super::{managed_connection_name, parse_any_wifi_device, parse_connected_wifi_device};
+    use super::{connect_command_args, parse_any_wifi_device, parse_connected_wifi_device};
+    use crate::types::WifiNetwork;
 
     #[test]
     fn adapter_parser_prefers_connected_wifi_devices() {
@@ -286,7 +232,18 @@ mod tests {
     }
 
     #[test]
-    fn managed_connection_names_are_namespaced() {
-        assert_eq!(managed_connection_name("home"), "nm-wifi-home");
+    fn secured_networks_use_nmcli_device_wifi_connect_with_password() {
+        let network = WifiNetwork {
+            ssid: "home".to_string(),
+            signal_strength: 80,
+            secured: true,
+            frequency: 5180,
+            connected: false,
+        };
+
+        assert_eq!(
+            connect_command_args(&network, Some("hunter2")).unwrap(),
+            vec!["device", "wifi", "connect", "home", "password", "hunter2"]
+        );
     }
 }
