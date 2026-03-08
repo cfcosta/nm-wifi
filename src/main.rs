@@ -53,8 +53,7 @@ impl<F: FnOnce()> Drop for CleanupGuard<F> {
 
 fn begin_disconnect_for_selected_network(app: &mut App) {
     if let Some(network) = app
-        .networks
-        .get(app.selected_index)
+        .selected_network_in_list()
         .filter(|n| n.connected)
         .cloned()
     {

@@ -104,8 +104,12 @@ impl App {
         }
     }
 
+    pub fn selected_network_in_list(&self) -> Option<&WifiNetwork> {
+        self.networks.get(self.selected_index)
+    }
+
     pub fn select_network(&mut self) {
-        let network = self.networks.get(self.selected_index).cloned();
+        let network = self.selected_network_in_list().cloned();
 
         match &network {
             Some(network) if network.connected => {
