@@ -6,7 +6,8 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use nm_wifi::{
-    app::{CleanupGuard, run_app},
+    app::{CleanupGuard, run_app_with_backend},
+    backend::default_backend,
     types::App,
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -26,7 +27,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let app = App::new();
-    let res = run_app(&mut terminal, app).await;
+    let backend = default_backend();
+    let res = run_app_with_backend(&mut terminal, backend.as_ref(), app).await;
 
     terminal.show_cursor()?;
     cleanup_guard.dismiss();

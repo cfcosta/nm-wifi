@@ -7,13 +7,8 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{Terminal, backend::Backend};
 
 use crate::{
-    network::{
-        ConnectionRequest,
-        connect_to_network,
-        disconnect_from_network,
-        get_wifi_adapter_name,
-        scan_wifi_networks,
-    },
+    backend::{NetworkBackend, default_backend},
+    network::ConnectionRequest,
     types::{App, AppState, OperationKind},
     ui::ui,
 };
@@ -52,7 +47,10 @@ pub fn begin_disconnect_for_selected_network(app: &mut App) {
     }
 }
 
-async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
+async fn handle_scanning_state(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
     if event::poll(Duration::from_millis(100))? {
         if let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
@@ -70,7 +68,7 @@ async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    let networks = match scan_wifi_networks().await {
+    let networks = match backend.scan_networks().await {
         Ok(networks) => networks,
         Err(error) => {
             app.handle_scan_error(error);
@@ -83,7 +81,7 @@ async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
     app.last_scan_time = Some(Instant::now());
 
     if app.adapter_name.is_none() {
-        app.adapter_name = get_wifi_adapter_name().ok().flatten();
+        app.adapter_name = backend.adapter_name().ok().flatten();
     }
 
     if previous_count == 0 && !app.networks.is_empty() {
@@ -104,7 +102,10 @@ async fn handle_scanning_state(app: &mut App) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn handle_connection_state(app: &mut App) -> Result<(), Box<dyn Error>> {
+async fn handle_connection_state(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
     if event::poll(Duration::from_millis(100))?
         && let Event::Key(key) = event::read()?
         && key.kind == KeyEventKind::Press
@@ -124,14 +125,17 @@ async fn handle_connection_state(app: &mut App) -> Result<(), Box<dyn Error>> {
         ConnectionRequest::Open { network }
     };
 
-    match connect_to_network(request) {
+    match backend.connect(request) {
         Ok(_) => app.finish_operation(true, None),
         Err(error) => app.finish_operation(false, Some(error.to_string())),
     }
     Ok(())
 }
 
-async fn handle_disconnection_state(app: &mut App) -> Result<(), Box<dyn Error>> {
+async fn handle_disconnection_state(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
     if event::poll(Duration::from_millis(100))?
         && let Event::Key(key) = event::read()?
         && key.kind == KeyEventKind::Press
@@ -141,7 +145,7 @@ async fn handle_disconnection_state(app: &mut App) -> Result<(), Box<dyn Error>>
         return Ok(());
     }
 
-    match disconnect_from_network(app.selected_network.as_ref().unwrap()) {
+    match backend.disconnect(app.selected_network.as_ref().unwrap()) {
         Ok(_) => app.finish_operation(true, None),
         Err(error) => app.finish_operation(false, Some(error.to_string())),
     }
@@ -199,8 +203,9 @@ fn handle_keypress(app: &mut App, key: KeyCode) {
     }
 }
 
-pub async fn run_app<B: Backend>(
+pub async fn run_app_with_backend<B: Backend>(
     terminal: &mut Terminal<B>,
+    backend: &dyn NetworkBackend,
     mut app: App,
 ) -> Result<(), Box<dyn Error>> {
     loop {
@@ -212,15 +217,15 @@ pub async fn run_app<B: Backend>(
 
         match app.state {
             AppState::Scanning => {
-                handle_scanning_state(&mut app).await?;
+                handle_scanning_state(backend, &mut app).await?;
                 continue;
             }
             AppState::Connecting => {
-                handle_connection_state(&mut app).await?;
+                handle_connection_state(backend, &mut app).await?;
                 continue;
             }
             AppState::Disconnecting => {
-                handle_disconnection_state(&mut app).await?;
+                handle_disconnection_state(backend, &mut app).await?;
                 continue;
             }
             _ => {}
@@ -235,6 +240,11 @@ pub async fn run_app<B: Backend>(
     }
 
     Ok(())
+}
+
+pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: App) -> Result<(), Box<dyn Error>> {
+    let backend = default_backend();
+    run_app_with_backend(terminal, backend.as_ref(), app).await
 }
 
 #[cfg(test)]
