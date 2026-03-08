@@ -206,20 +206,8 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("↑/k", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "        Move up",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("↓/j", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "        Move down",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
+        Line::from("↑/k        Move up"),
+        Line::from("↓/j        Move down"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Actions",
@@ -228,34 +216,10 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Enter/c", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "     Connect or disconnect selected network",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("d", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "           Disconnect from network",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("r", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "           Rescan networks",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("i", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "           Show network details",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
+        Line::from("Enter/c    Connect or disconnect selection"),
+        Line::from("d          Disconnect selected active network"),
+        Line::from("r          Rescan networks"),
+        Line::from("i          Show network details"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Other",
@@ -264,49 +228,19 @@ pub fn render_help_screen(f: &mut Frame, _app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("h", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "         Show this help",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("q/Esc", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "      Quit application",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
+        Line::from("h          Show help"),
+        Line::from("q/Esc      Quit application"),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Symbols",
+            "Markers",
             Style::default()
                 .fg(CatppuccinColors::MAUVE)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("🔗", Style::default().fg(CatppuccinColors::GREEN)),
-            Span::styled(
-                "         Connected",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("🔒", Style::default().fg(CatppuccinColors::MAUVE)),
-            Span::styled(
-                "         Secured network",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("2.4G/5G", Style::default().fg(CatppuccinColors::SAPPHIRE)),
-            Span::styled(
-                "     Frequency band",
-                Style::default().fg(CatppuccinColors::TEXT),
-            ),
-        ]),
+        Line::from("Link icon   Connected network"),
+        Line::from("Lock icon   Protected network"),
+        Line::from("2.4G/5G     Frequency band"),
     ];
 
     let help_paragraph = Paragraph::new(help_text)
@@ -488,13 +422,6 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
         let password_field = format!("{:<38}", password_display);
 
         let password_text = vec![
-            Line::from(Span::styled(
-                "Enter password",
-                Style::default()
-                    .fg(CatppuccinColors::TEXT)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
             Line::from(format!("Network: {}", network.ssid)),
             Line::from(format!("Security: {}", network.security.display_name())),
             Line::from(""),
@@ -574,18 +501,7 @@ pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
         let spinner = get_connection_animation_frame(elapsed);
 
         let connecting_text = vec![
-            Line::from(vec![
-                Span::styled(
-                    format!("{} ", spinner),
-                    Style::default().fg(CatppuccinColors::YELLOW),
-                ),
-                Span::styled(
-                    "Connecting",
-                    Style::default()
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]),
+            Line::from(format!("Status: {}", spinner)),
             Line::from(""),
             Line::from(format!("Network: {}", network.ssid)),
             Line::from(format!("Security: {}", network.security.display_name())),
@@ -642,15 +558,10 @@ pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
 
         let disconnecting_text = vec![
             Line::from(vec![
+                Span::styled("Status: ", Style::default().fg(CatppuccinColors::TEXT)),
                 Span::styled(
-                    format!("{} ", spinner),
+                    spinner.to_string(),
                     Style::default().fg(CatppuccinColors::PEACH),
-                ),
-                Span::styled(
-                    "Disconnecting",
-                    Style::default()
-                        .fg(CatppuccinColors::TEXT)
-                        .add_modifier(Modifier::BOLD),
                 ),
             ]),
             Line::from(""),
