@@ -11,8 +11,7 @@ use crossterm::{
     },
 };
 use nm_wifi::{
-    app::{CleanupGuard, run_app_with_backend},
-    backend::default_backend,
+    app::{CleanupGuard, run_app},
     types::App,
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -33,8 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let app = App::new();
-    let backend = default_backend();
-    let res = run_app_with_backend(&mut terminal, backend.as_ref(), app).await;
+    let res = run_app(&mut terminal, app).await;
 
     terminal.show_cursor()?;
     cleanup_guard.dismiss();

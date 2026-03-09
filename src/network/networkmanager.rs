@@ -157,6 +157,128 @@ pub(crate) fn scan_wait_duration(last_scan_delta_ms: i64) -> Duration {
     }
 }
 
+pub(crate) fn scan_wifi_networks_blocking()
+-> Result<Vec<WifiNetwork>, Box<dyn Error>> {
+    let dbus = dbus::blocking::Connection::new_system().map_err(|error| {
+        contextual_error("Failed to connect to D-Bus", error)
+    })?;
+    let nm = NetworkManager::new(&dbus);
+
+    let connected_ssid = get_connected_ssid()?;
+
+    let devices = nm.get_devices().map_err(|error| {
+        contextual_error("Failed to list NetworkManager devices", error)
+    })?;
+
+    for device in devices {
+        if let Device::WiFi(wifi_device) = device {
+            let last_scan_before_request = wifi_device.last_scan().unwrap_or(0);
+
+            wifi_device.request_scan(HashMap::new()).map_err(|error| {
+                contextual_error("Failed to request WiFi scan", error)
+            })?;
+
+            let last_scan_after_request =
+                wifi_device.last_scan().unwrap_or(last_scan_before_request);
+            let wait_duration = scan_wait_duration(
+                last_scan_after_request - last_scan_before_request,
+            );
+            if !wait_duration.is_zero() {
+                std::thread::sleep(wait_duration);
+            }
+
+            let access_points =
+                wifi_device.get_all_access_points().map_err(|error| {
+                    contextual_error("Failed to list WiFi access points", error)
+                })?;
+
+            let mut networks = Vec::new();
+
+            for ap in access_points {
+                let ssid = ap.ssid().map_err(|error| {
+                    contextual_error("Failed to read access point SSID", error)
+                })?;
+                if !ssid.is_empty() {
+                    let flags = ap.flags().map_err(|error| {
+                        contextual_error(
+                            "Failed to read access point flags",
+                            error,
+                        )
+                    })?;
+                    let wpa_flags = ap.wpa_flags().map_err(|error| {
+                        contextual_error(
+                            "Failed to read WPA capabilities",
+                            error,
+                        )
+                    })?;
+                    let rsn_flags = ap.rsn_flags().map_err(|error| {
+                        contextual_error(
+                            "Failed to read RSN capabilities",
+                            error,
+                        )
+                    })?;
+
+                    let security = classify_access_point_security(
+                        flags, wpa_flags, rsn_flags,
+                    );
+
+                    let signal_strength = ap.strength().map_err(|error| {
+                        contextual_error(
+                            "Failed to read signal strength",
+                            error,
+                        )
+                    })?;
+
+                    let frequency = ap.frequency().map_err(|error| {
+                        contextual_error("Failed to read WiFi frequency", error)
+                    })?;
+
+                    let connected = connected_ssid.as_ref() == Some(&ssid);
+
+                    networks.push(WifiNetwork {
+                        ssid,
+                        signal_strength,
+                        security,
+                        frequency,
+                        connected,
+                    });
+                }
+            }
+
+            let mut unique_networks: HashMap<String, WifiNetwork> =
+                HashMap::new();
+            for network in networks {
+                match unique_networks.get(&network.ssid) {
+                    Some(existing) => {
+                        if network.frequency > existing.frequency {
+                            unique_networks
+                                .insert(network.ssid.clone(), network);
+                        }
+                    }
+                    None => {
+                        unique_networks.insert(network.ssid.clone(), network);
+                    }
+                }
+            }
+
+            let mut deduplicated_networks: Vec<WifiNetwork> =
+                unique_networks.into_values().collect();
+
+            deduplicated_networks.sort_by(|a, b| {
+                match (a.connected, b.connected) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => b.signal_strength.cmp(&a.signal_strength),
+                }
+            });
+
+            return Ok(deduplicated_networks);
+        }
+    }
+
+    Ok(Vec::new())
+}
+
 pub async fn scan_wifi_networks() -> Result<Vec<WifiNetwork>, Box<dyn Error>> {
     let dbus = dbus::blocking::Connection::new_system().map_err(|error| {
         contextual_error("Failed to connect to D-Bus", error)

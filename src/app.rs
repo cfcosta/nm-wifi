@@ -8,14 +8,14 @@ use ratatui::{Terminal, backend::Backend};
 
 use crate::{
     app_state::{App, AppState, OperationKind},
-    backend::{NetworkBackend, default_backend},
+    backend::{NetworkBackend, default_runtime_driver},
     network::ConnectionRequest,
     ui::ui,
     wifi::WifiNetwork,
 };
 
 #[cfg_attr(not(test), allow(dead_code))]
-mod runtime;
+pub(crate) mod runtime;
 
 pub struct CleanupGuard<F: FnOnce()> {
     cleanup: Option<F>,
@@ -333,8 +333,16 @@ pub async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     app: App,
 ) -> Result<(), Box<dyn Error>> {
-    let backend = default_backend();
-    run_app_with_backend(terminal, backend.as_ref(), app).await
+    let mut input = runtime::CrosstermInput;
+    let mut runtime_driver = default_runtime_driver();
+    runtime::run_app_with_runtime(
+        terminal,
+        &mut input,
+        runtime_driver.as_mut(),
+        app,
+    )
+    .await
+    .map(|_| ())
 }
 
 #[cfg(test)]

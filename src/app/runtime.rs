@@ -1,6 +1,6 @@
 use std::{error::Error, time::Duration};
 
-use crossterm::event::KeyCode;
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{Terminal, backend::Backend};
 
 use super::{
@@ -51,6 +51,26 @@ pub(crate) trait RuntimeInput {
     ) -> Result<Option<KeyCode>, Box<dyn Error>>;
 }
 
+pub(crate) struct CrosstermInput;
+
+impl RuntimeInput for CrosstermInput {
+    fn next_key(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<Option<KeyCode>, Box<dyn Error>> {
+        if !event::poll(timeout)? {
+            return Ok(None);
+        }
+
+        match event::read()? {
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                Ok(Some(key.code))
+            }
+            _ => Ok(None),
+        }
+    }
+}
+
 pub(crate) trait RuntimeBackendDriver {
     fn begin(&mut self, request: RuntimeRequest);
 
@@ -72,8 +92,8 @@ pub(crate) async fn run_app_with_runtime<B, I, D>(
 ) -> Result<App, Box<dyn Error>>
 where
     B: Backend,
-    I: RuntimeInput,
-    D: RuntimeBackendDriver,
+    I: RuntimeInput + ?Sized,
+    D: RuntimeBackendDriver + ?Sized,
 {
     let mut in_flight = None;
 
@@ -134,7 +154,7 @@ where
     Ok(app)
 }
 
-fn handle_in_flight_request<I: RuntimeInput>(
+fn handle_in_flight_request<I: RuntimeInput + ?Sized>(
     input: &mut I,
     app: &mut App,
     request: InFlightRequest,
