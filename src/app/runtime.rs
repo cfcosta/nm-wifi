@@ -39,9 +39,9 @@ pub(crate) enum RuntimeRequest {
 
 #[derive(Debug, Clone)]
 pub(crate) enum RuntimeEvent {
-    ScanFinished(Result<ScanSnapshot, String>),
-    ConnectFinished(Result<(), String>),
-    DisconnectFinished(Result<(), String>),
+    Scan(Result<ScanSnapshot, String>),
+    Connect(Result<(), String>),
+    Disconnect(Result<(), String>),
 }
 
 pub(crate) trait RuntimeInput {
@@ -92,6 +92,7 @@ pub(crate) async fn run_app_with_runtime<B, I, D>(
 ) -> Result<App, Box<dyn Error>>
 where
     B: Backend,
+    B::Error: Error + 'static,
     I: RuntimeInput + ?Sized,
     D: RuntimeBackendDriver + ?Sized,
 {
@@ -204,22 +205,18 @@ fn disconnection_request(app: &App) -> RuntimeRequest {
 
 fn apply_runtime_event(app: &mut App, event: RuntimeEvent) {
     match event {
-        RuntimeEvent::ScanFinished(Ok(snapshot)) => apply_scanned_networks(
+        RuntimeEvent::Scan(Ok(snapshot)) => apply_scanned_networks(
             app,
             snapshot.networks,
             snapshot.adapter_name,
         ),
-        RuntimeEvent::ScanFinished(Err(error)) => app.handle_scan_error(error),
-        RuntimeEvent::ConnectFinished(Ok(())) => {
-            app.finish_operation(true, None)
-        }
-        RuntimeEvent::ConnectFinished(Err(error)) => {
+        RuntimeEvent::Scan(Err(error)) => app.handle_scan_error(error),
+        RuntimeEvent::Connect(Ok(())) => app.finish_operation(true, None),
+        RuntimeEvent::Connect(Err(error)) => {
             app.finish_operation(false, Some(error))
         }
-        RuntimeEvent::DisconnectFinished(Ok(())) => {
-            app.finish_operation(true, None)
-        }
-        RuntimeEvent::DisconnectFinished(Err(error)) => {
+        RuntimeEvent::Disconnect(Ok(())) => app.finish_operation(true, None),
+        RuntimeEvent::Disconnect(Err(error)) => {
             app.finish_operation(false, Some(error))
         }
     }
@@ -369,7 +366,7 @@ mod tests {
         let mut driver = ScriptedDriver::new(vec![
             None,
             None,
-            Some(RuntimeEvent::DisconnectFinished(Err(
+            Some(RuntimeEvent::Disconnect(Err(
                 "disconnect failed".to_string()
             ))),
             None,
@@ -396,7 +393,7 @@ mod tests {
         let mut app = App::new();
         apply_runtime_event(
             &mut app,
-            RuntimeEvent::ScanFinished(Ok(super::ScanSnapshot {
+            RuntimeEvent::Scan(Ok(super::ScanSnapshot {
                 networks: vec![network("CatCat", WifiSecurity::WpaSae, true)],
                 adapter_name: Some("demo-wlan0".to_string()),
             })),
@@ -408,7 +405,7 @@ mod tests {
 
         app.selected_network =
             Some(network("CatCat", WifiSecurity::WpaSae, true));
-        apply_runtime_event(&mut app, RuntimeEvent::ConnectFinished(Ok(())));
+        apply_runtime_event(&mut app, RuntimeEvent::Connect(Ok(())));
 
         assert!(matches!(app.state, AppState::ConnectionResult));
         assert!(app.connection_success);

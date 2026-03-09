@@ -290,11 +290,15 @@ fn handle_keypress(app: &mut App, key: KeyCode) {
     }
 }
 
-pub async fn run_app_with_backend<B: Backend>(
+pub async fn run_app_with_backend<B>(
     terminal: &mut Terminal<B>,
     backend: &dyn NetworkBackend,
     mut app: App,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error>>
+where
+    B: Backend,
+    B::Error: Error + 'static,
+{
     loop {
         terminal.draw(|frame| ui(frame, &app))?;
 
@@ -329,10 +333,14 @@ pub async fn run_app_with_backend<B: Backend>(
     Ok(())
 }
 
-pub async fn run_app<B: Backend>(
+pub async fn run_app<B>(
     terminal: &mut Terminal<B>,
     app: App,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error>>
+where
+    B: Backend,
+    B::Error: Error + 'static,
+{
     let mut input = runtime::CrosstermInput;
     let mut runtime_driver = default_runtime_driver();
     runtime::run_app_with_runtime(

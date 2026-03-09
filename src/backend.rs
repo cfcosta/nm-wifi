@@ -98,14 +98,12 @@ impl RuntimeBackendDriver for DemoRuntimeDriver {
     fn begin(&mut self, request: RuntimeRequest) {
         let (sender, receiver) = mpsc::channel();
         let event = match request {
-            RuntimeRequest::Scan => {
-                RuntimeEvent::ScanFinished(Ok(ScanSnapshot {
-                    networks: crate::network::demo::demo_networks(),
-                    adapter_name: crate::network::demo::get_wifi_adapter_name()
-                        .ok()
-                        .flatten(),
-                }))
-            }
+            RuntimeRequest::Scan => RuntimeEvent::Scan(Ok(ScanSnapshot {
+                networks: crate::network::demo::demo_networks(),
+                adapter_name: crate::network::demo::get_wifi_adapter_name()
+                    .ok()
+                    .flatten(),
+            })),
             RuntimeRequest::Connect {
                 network,
                 passphrase,
@@ -123,16 +121,12 @@ impl RuntimeBackendDriver for DemoRuntimeDriver {
                         ConnectionRequest::Open { network: &network },
                     ),
                 };
-                RuntimeEvent::ConnectFinished(
-                    result.map_err(|error| error.to_string()),
-                )
+                RuntimeEvent::Connect(result.map_err(|error| error.to_string()))
             }
-            RuntimeRequest::Disconnect { network } => {
-                RuntimeEvent::DisconnectFinished(
-                    crate::network::demo::disconnect_from_network(&network)
-                        .map_err(|error| error.to_string()),
-                )
-            }
+            RuntimeRequest::Disconnect { network } => RuntimeEvent::Disconnect(
+                crate::network::demo::disconnect_from_network(&network)
+                    .map_err(|error| error.to_string()),
+            ),
         };
         let _ = sender.send(event);
         self.pending_event = Some(receiver);
@@ -201,19 +195,17 @@ impl RuntimeBackendDriver for NetworkManagerRuntimeDriver {
                             .flatten();
 
                         match networks {
-                            Ok(networks) => RuntimeEvent::ScanFinished(Ok(ScanSnapshot {
+                            Ok(networks) => RuntimeEvent::Scan(Ok(ScanSnapshot {
                                 networks,
                                 adapter_name,
                             })),
-                            Err(error) => {
-                                RuntimeEvent::ScanFinished(Err(error.to_string()))
-                            }
+                            Err(error) => RuntimeEvent::Scan(Err(error.to_string())),
                         }
                     })
                     .await
                     {
                         Ok(event) => event,
-                        Err(error) => RuntimeEvent::ScanFinished(Err(format!(
+                        Err(error) => RuntimeEvent::Scan(Err(format!(
                             "runtime scan task failed: {error}"
                         ))),
                     };
@@ -239,12 +231,12 @@ impl RuntimeBackendDriver for NetworkManagerRuntimeDriver {
                             ),
                         };
 
-                        RuntimeEvent::ConnectFinished(result.map_err(|error| error.to_string()))
+                        RuntimeEvent::Connect(result.map_err(|error| error.to_string()))
                     })
                     .await
                     {
                         Ok(event) => event,
-                        Err(error) => RuntimeEvent::ConnectFinished(Err(format!(
+                        Err(error) => RuntimeEvent::Connect(Err(format!(
                             "runtime connect task failed: {error}"
                         ))),
                     };
@@ -255,7 +247,7 @@ impl RuntimeBackendDriver for NetworkManagerRuntimeDriver {
             RuntimeRequest::Disconnect { network } => {
                 tokio::spawn(async move {
                     let event = match tokio::task::spawn_blocking(move || {
-                        RuntimeEvent::DisconnectFinished(
+                        RuntimeEvent::Disconnect(
                             crate::network::networkmanager::disconnect_from_network(&network)
                                 .map_err(|error| error.to_string()),
                         )
@@ -263,7 +255,7 @@ impl RuntimeBackendDriver for NetworkManagerRuntimeDriver {
                     .await
                     {
                         Ok(event) => event,
-                        Err(error) => RuntimeEvent::DisconnectFinished(Err(format!(
+                        Err(error) => RuntimeEvent::Disconnect(Err(format!(
                             "runtime disconnect task failed: {error}"
                         ))),
                     };
