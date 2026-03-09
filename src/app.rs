@@ -14,6 +14,9 @@ use crate::{
     wifi::WifiNetwork,
 };
 
+#[cfg_attr(not(test), allow(dead_code))]
+mod runtime;
+
 pub struct CleanupGuard<F: FnOnce()> {
     cleanup: Option<F>,
 }
@@ -60,21 +63,18 @@ fn selected_network_for_operation<'a>(
     app.selected_network.as_ref().expect(message)
 }
 
-async fn refresh_networks(backend: &dyn NetworkBackend, app: &mut App) {
-    let networks = match backend.scan_networks().await {
-        Ok(networks) => networks,
-        Err(error) => {
-            app.handle_scan_error(error);
-            return;
-        }
-    };
+fn apply_scanned_networks(
+    app: &mut App,
+    networks: Vec<WifiNetwork>,
+    adapter_name: Option<String>,
+) {
     let previous_count = app.networks.len();
     app.networks = networks;
     app.network_count = app.networks.len();
     app.last_scan_time = Some(Instant::now());
 
     if app.adapter_name.is_none() {
-        app.adapter_name = backend.adapter_name().ok().flatten();
+        app.adapter_name = adapter_name;
     }
 
     if previous_count == 0 && !app.networks.is_empty() {
@@ -94,6 +94,23 @@ async fn refresh_networks(backend: &dyn NetworkBackend, app: &mut App) {
     } else {
         app.status_message = "Scanning for WiFi networks...".to_string();
     }
+}
+
+async fn refresh_networks(backend: &dyn NetworkBackend, app: &mut App) {
+    let networks = match backend.scan_networks().await {
+        Ok(networks) => networks,
+        Err(error) => {
+            app.handle_scan_error(error);
+            return;
+        }
+    };
+    let adapter_name = if app.adapter_name.is_none() {
+        backend.adapter_name().ok().flatten()
+    } else {
+        None
+    };
+
+    apply_scanned_networks(app, networks, adapter_name);
 }
 
 pub async fn refresh_networks_with_backend(
@@ -152,6 +169,22 @@ pub fn complete_disconnection_with_backend(
     Ok(())
 }
 
+fn handle_scanning_keypress(app: &mut App, key: KeyCode) {
+    match key {
+        KeyCode::Esc => app.quit(),
+        KeyCode::Char('j') | KeyCode::Down if !app.networks.is_empty() => {
+            app.next()
+        }
+        KeyCode::Char('k') | KeyCode::Up if !app.networks.is_empty() => {
+            app.previous()
+        }
+        KeyCode::Enter | KeyCode::Char('c') if !app.networks.is_empty() => {
+            app.activate_selected_network()
+        }
+        _ => {}
+    }
+}
+
 async fn handle_scanning_state(
     backend: &dyn NetworkBackend,
     app: &mut App,
@@ -160,25 +193,7 @@ async fn handle_scanning_state(
         if let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
-            match key.code {
-                KeyCode::Esc => app.quit(),
-                KeyCode::Char('j') | KeyCode::Down
-                    if !app.networks.is_empty() =>
-                {
-                    app.next()
-                }
-                KeyCode::Char('k') | KeyCode::Up
-                    if !app.networks.is_empty() =>
-                {
-                    app.previous()
-                }
-                KeyCode::Enter | KeyCode::Char('c')
-                    if !app.networks.is_empty() =>
-                {
-                    app.activate_selected_network()
-                }
-                _ => {}
-            }
+            handle_scanning_keypress(app, key.code);
         }
         return Ok(());
     }
