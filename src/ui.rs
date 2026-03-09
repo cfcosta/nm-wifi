@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
@@ -448,23 +448,74 @@ pub fn render_network_details(f: &mut Frame, app: &App) {
     }
 }
 
+fn modal_shadow_area(popup_area: Rect) -> Rect {
+    Rect {
+        x: popup_area.x + 1,
+        y: popup_area.y + 1,
+        width: popup_area.width,
+        height: popup_area.height,
+    }
+}
+
+fn render_modal_shell(f: &mut Frame, popup_area: Rect) {
+    f.render_widget(Clear, popup_area);
+    f.render_widget(
+        Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
+        modal_shadow_area(popup_area),
+    );
+}
+
+fn modal_block<'a>(title: &'a str, border_color: Color) -> Block<'a> {
+    Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .title_style(
+            Style::default()
+                .fg(border_color)
+                .add_modifier(Modifier::BOLD),
+        )
+        .border_style(Style::default().fg(border_color))
+}
+
+fn render_modal(
+    f: &mut Frame,
+    popup_area: Rect,
+    title: &str,
+    border_color: Color,
+    lines: Vec<Line<'static>>,
+) {
+    render_modal_shell(f, popup_area);
+    let modal = Paragraph::new(lines)
+        .block(modal_block(title, border_color))
+        .style(Style::default().bg(CatppuccinColors::BASE))
+        .alignment(Alignment::Left);
+
+    f.render_widget(modal, popup_area);
+}
+
+fn network_summary_lines(
+    network: &WifiNetwork,
+    include_signal: bool,
+) -> Vec<Line<'static>> {
+    let mut lines = vec![
+        Line::from(format!("Network: {}", network.ssid)),
+        Line::from(format!("Security: {}", network.security.display_name())),
+    ];
+
+    if include_signal {
+        lines.push(Line::from(format!(
+            "Signal: {}% ({})",
+            network.signal_strength,
+            get_frequency_band(network.frequency)
+        )));
+    }
+
+    lines
+}
+
 pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
     if let Some(network) = &app.selected_network {
         let popup_area = centered_rect(64, 28, f.area());
-        f.render_widget(Clear, popup_area);
-
-        let shadow_area = Rect {
-            x: popup_area.x + 1,
-            y: popup_area.y + 1,
-            width: popup_area.width,
-            height: popup_area.height,
-        };
-        f.render_widget(
-            Block::default()
-                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
-            shadow_area,
-        );
-
         let password_display = if app.password_visible {
             app.password_input.clone()
         } else {
@@ -472,12 +523,8 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
         };
         let password_field = format!("{:<38}", password_display);
 
-        let password_text = vec![
-            Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!(
-                "Security: {}",
-                network.security.display_name()
-            )),
+        let mut password_text = network_summary_lines(network, false);
+        password_text.extend([
             Line::from(""),
             Line::from("Password:"),
             Line::from(""),
@@ -501,7 +548,7 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
                     Style::default().fg(CatppuccinColors::SURFACE2),
                 ),
                 Span::styled(
-                    &password_field,
+                    password_field,
                     Style::default()
                         .fg(CatppuccinColors::TEXT)
                         .bg(CatppuccinColors::SURFACE0),
@@ -529,141 +576,59 @@ pub fn render_enhanced_password_modal(f: &mut Frame, app: &App) {
             Line::from("Enter: connect"),
             Line::from("Tab: show or hide password"),
             Line::from("Esc: cancel"),
-        ];
+        ]);
 
-        let password_modal = Paragraph::new(password_text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Password")
-                    .title_style(
-                        Style::default()
-                            .fg(CatppuccinColors::BLUE)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .border_style(Style::default().fg(CatppuccinColors::BLUE)),
-            )
-            .style(Style::default().bg(CatppuccinColors::BASE))
-            .alignment(Alignment::Left);
-
-        f.render_widget(password_modal, popup_area);
+        render_modal(
+            f,
+            popup_area,
+            "Password",
+            CatppuccinColors::BLUE,
+            password_text,
+        );
     }
 }
 
 pub fn render_enhanced_connecting_modal(f: &mut Frame, app: &App) {
     if let Some(network) = &app.selected_network {
         let popup_area = centered_rect(64, 28, f.area());
-        f.render_widget(Clear, popup_area);
-
-        let shadow_area = Rect {
-            x: popup_area.x + 1,
-            y: popup_area.y + 1,
-            width: popup_area.width,
-            height: popup_area.height,
-        };
-        f.render_widget(
-            Block::default()
-                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
-            shadow_area,
-        );
-
-        let connecting_text = vec![
-            Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!(
-                "Security: {}",
-                network.security.display_name()
-            )),
-            Line::from(format!(
-                "Signal: {}% ({})",
-                network.signal_strength,
-                get_frequency_band(network.frequency)
-            )),
+        let mut connecting_text = network_summary_lines(network, true);
+        connecting_text.extend([
             Line::from(""),
             Line::from("Activating connection via NetworkManager..."),
             Line::from("Press Esc to quit the application."),
-        ];
+        ]);
 
-        let connecting_modal = Paragraph::new(connecting_text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Connecting")
-                    .title_style(
-                        Style::default()
-                            .fg(CatppuccinColors::YELLOW)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .border_style(
-                        Style::default().fg(CatppuccinColors::YELLOW),
-                    ),
-            )
-            .style(Style::default().bg(CatppuccinColors::BASE))
-            .alignment(Alignment::Left);
-
-        f.render_widget(connecting_modal, popup_area);
+        render_modal(
+            f,
+            popup_area,
+            "Connecting",
+            CatppuccinColors::YELLOW,
+            connecting_text,
+        );
     }
 }
 
 pub fn render_enhanced_disconnecting_modal(f: &mut Frame, app: &App) {
     if let Some(network) = &app.selected_network {
         let popup_area = centered_rect(64, 24, f.area());
-        f.render_widget(Clear, popup_area);
-
-        let shadow_area = Rect {
-            x: popup_area.x + 1,
-            y: popup_area.y + 1,
-            width: popup_area.width,
-            height: popup_area.height,
-        };
-        f.render_widget(
-            Block::default()
-                .style(Style::default().bg(CatppuccinColors::SURFACE0)),
-            shadow_area,
-        );
-
-        let disconnecting_text = vec![
-            Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!(
-                "Security: {}",
-                network.security.display_name()
-            )),
+        let mut disconnecting_text = network_summary_lines(network, false);
+        disconnecting_text.extend([
             Line::from("Disconnecting via NetworkManager..."),
             Line::from("Press Esc to quit the application."),
-        ];
+        ]);
 
-        let disconnecting_modal = Paragraph::new(disconnecting_text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Disconnecting")
-                    .title_style(
-                        Style::default()
-                            .fg(CatppuccinColors::PEACH)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .border_style(Style::default().fg(CatppuccinColors::PEACH)),
-            )
-            .style(Style::default().bg(CatppuccinColors::BASE))
-            .alignment(Alignment::Left);
-
-        f.render_widget(disconnecting_modal, popup_area);
+        render_modal(
+            f,
+            popup_area,
+            "Disconnecting",
+            CatppuccinColors::PEACH,
+            disconnecting_text,
+        );
     }
 }
 
 pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
     let popup_area = centered_rect(68, 38, f.area());
-    f.render_widget(Clear, popup_area);
-
-    let shadow_area = Rect {
-        x: popup_area.x + 1,
-        y: popup_area.y + 1,
-        width: popup_area.width,
-        height: popup_area.height,
-    };
-    f.render_widget(
-        Block::default().style(Style::default().bg(CatppuccinColors::SURFACE0)),
-        shadow_area,
-    );
 
     let (title, color) = if app.connection_success {
         if app.is_disconnect_operation {
@@ -680,18 +645,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
     let mut result_text = vec![];
 
     if let Some(network) = &app.selected_network {
-        result_text.extend([
-            Line::from(format!("Network: {}", network.ssid)),
-            Line::from(format!(
-                "Security: {}",
-                network.security.display_name()
-            )),
-            Line::from(format!(
-                "Signal: {}% ({})",
-                network.signal_strength,
-                get_frequency_band(network.frequency)
-            )),
-        ]);
+        result_text.extend(network_summary_lines(network, true));
     } else {
         result_text.push(Line::from("Network: Unknown"));
     }
@@ -714,7 +668,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                error_msg,
+                error_msg.to_string(),
                 Style::default().fg(CatppuccinColors::TEXT),
             ),
         ]));
@@ -726,20 +680,7 @@ pub fn render_enhanced_result_modal(f: &mut Frame, app: &App) {
         Line::from("q/Esc: quit"),
     ]);
 
-    let result_modal = Paragraph::new(result_text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .title_style(
-                    Style::default().fg(color).add_modifier(Modifier::BOLD),
-                )
-                .border_style(Style::default().fg(color)),
-        )
-        .style(Style::default().bg(CatppuccinColors::BASE))
-        .alignment(Alignment::Left);
-
-    f.render_widget(result_modal, popup_area);
+    render_modal(f, popup_area, title, color, result_text);
 }
 
 pub fn ui(f: &mut Frame, app: &App) {
@@ -881,10 +822,46 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 
 #[cfg(test)]
 mod tests {
+    use ratatui::{Terminal, backend::TestBackend};
     use unicode_width::UnicodeWidthStr;
 
-    use super::{format_ssid_column, get_frequency_band, keybindings_hint};
-    use crate::app_state::AppState;
+    use super::{format_ssid_column, get_frequency_band, keybindings_hint, ui};
+    use crate::{
+        app_state::{App, AppState},
+        wifi::{WifiNetwork, WifiSecurity},
+    };
+
+    fn network(
+        ssid: &str,
+        security: WifiSecurity,
+        connected: bool,
+    ) -> WifiNetwork {
+        WifiNetwork {
+            ssid: ssid.to_string(),
+            signal_strength: 78,
+            security,
+            frequency: 5180,
+            connected,
+        }
+    }
+
+    fn render_text(app: &App) -> String {
+        let backend = TestBackend::new(120, 36);
+        let mut terminal = Terminal::new(backend).expect("terminal created");
+        terminal
+            .draw(|frame| ui(frame, app))
+            .expect("render succeeds");
+
+        let buffer = terminal.backend().buffer().clone();
+        let mut text = String::new();
+        for y in 0..buffer.area.height {
+            for x in 0..buffer.area.width {
+                text.push_str(buffer[(x, y)].symbol());
+            }
+            text.push('\n');
+        }
+        text
+    }
 
     #[test]
     fn connecting_and_disconnecting_hints_show_only_quit_action() {
@@ -917,5 +894,67 @@ mod tests {
     fn ssid_column_uses_terminal_display_width() {
         let formatted = format_ssid_column("網😊", 6);
         assert_eq!(UnicodeWidthStr::width(formatted.as_str()), 6);
+    }
+
+    #[test]
+    fn password_modal_masks_and_reveals_input() {
+        let mut hidden_app = App::new();
+        hidden_app.state = AppState::PasswordInput;
+        hidden_app.networks =
+            vec![network("CatCat", WifiSecurity::WpaSae, false)];
+        hidden_app.selected_network =
+            Some(network("CatCat", WifiSecurity::WpaSae, false));
+        hidden_app.password_input = "hunter2".to_string();
+        hidden_app.password_visible = false;
+
+        let hidden_text = render_text(&hidden_app);
+        assert!(hidden_text.contains("Password"));
+        assert!(hidden_text.contains("•••••••"));
+        assert!(!hidden_text.contains("hunter2"));
+
+        hidden_app.password_visible = true;
+        let visible_text = render_text(&hidden_app);
+        assert!(visible_text.contains("hunter2"));
+    }
+
+    #[test]
+    fn operation_modals_render_titles_and_network_summary() {
+        let mut app = App::new();
+        let network = network("CatCat", WifiSecurity::WpaSae, false);
+        app.networks = vec![network.clone()];
+        app.selected_network = Some(network.clone());
+
+        app.state = AppState::Connecting;
+        let connecting_text = render_text(&app);
+        assert!(connecting_text.contains("Connecting"));
+        assert!(connecting_text.contains("Network: CatCat"));
+        assert!(connecting_text.contains("Security: WPA3 Personal"));
+        assert!(connecting_text.contains("Signal: 78% (5G)"));
+
+        app.state = AppState::Disconnecting;
+        let disconnecting_text = render_text(&app);
+        assert!(disconnecting_text.contains("Disconnecting"));
+        assert!(disconnecting_text.contains("Network: CatCat"));
+        assert!(disconnecting_text.contains("Security: WPA3 Personal"));
+        assert!(
+            disconnecting_text.contains("Disconnecting via NetworkManager...")
+        );
+    }
+
+    #[test]
+    fn result_modal_renders_backend_error_and_interface() {
+        let mut app = App::new();
+        app.state = AppState::ConnectionResult;
+        app.selected_network =
+            Some(network("CatCat", WifiSecurity::WpaSae, false));
+        app.connection_error =
+            Some("Failed to find WiFi device in NetworkManager".to_string());
+        app.adapter_name = Some("demo-wlan0".to_string());
+
+        let text = render_text(&app);
+        assert!(text.contains("Connection failed"));
+        assert!(text.contains("Network: CatCat"));
+        assert!(text.contains("Interface: demo-wlan0"));
+        assert!(text.contains("Failed to find WiFi device in NetworkManager"));
     }
 }
