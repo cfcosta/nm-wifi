@@ -16,6 +16,7 @@ use nm_wifi::{
 struct FakeBackendState {
     scan_networks: Vec<WifiNetwork>,
     adapter_name: Option<String>,
+    adapter_name_error: Option<String>,
     connect_calls: Vec<String>,
     disconnect_calls: Vec<String>,
     connect_error: Option<String>,
@@ -45,7 +46,11 @@ impl NetworkBackend for FakeBackend {
     }
 
     fn adapter_name(&self) -> Result<Option<String>, Box<dyn Error>> {
-        Ok(self.state.borrow().adapter_name.clone())
+        let state = self.state.borrow();
+        match &state.adapter_name_error {
+            Some(message) => Err(boxed_error(message.clone())),
+            None => Ok(state.adapter_name.clone()),
+        }
     }
 
     fn scan_networks(
@@ -140,6 +145,29 @@ async fn fake_backend_scan_errors_leave_retry_message() {
     );
 }
 
+#[tokio::test]
+async fn refresh_ignores_adapter_name_lookup_failure() {
+    let backend = FakeBackend::new(FakeBackendState {
+        scan_networks: vec![network(
+            "Coffee Corner",
+            WifiSecurity::Open,
+            false,
+        )],
+        adapter_name_error: Some("adapter lookup failed".to_string()),
+        ..FakeBackendState::default()
+    });
+    let mut app = App::new();
+
+    refresh_networks_with_backend(&backend, &mut app)
+        .await
+        .expect("refresh succeeds even when adapter lookup fails");
+
+    assert!(matches!(app.state, AppState::NetworkList));
+    assert_eq!(app.network_count, 1);
+    assert_eq!(app.selected_index, 0);
+    assert!(app.adapter_name.is_none());
+}
+
 #[test]
 fn fake_backend_connect_completes_result_state_and_records_calls() {
     let backend_state = FakeBackendState::default();
@@ -154,6 +182,29 @@ fn fake_backend_connect_completes_result_state_and_records_calls() {
 
     assert!(matches!(app.state, AppState::ConnectionResult));
     assert!(app.connection_success);
+    assert_eq!(
+        backend.state.borrow().connect_calls,
+        vec!["CatCat".to_string()]
+    );
+}
+
+#[test]
+fn connect_failure_maps_into_connection_result() {
+    let backend = FakeBackend::new(FakeBackendState {
+        connect_error: Some("connect failed".to_string()),
+        ..FakeBackendState::default()
+    });
+    let mut app = App::new();
+    app.selected_network = Some(network("CatCat", WifiSecurity::WpaSae, false));
+    app.password_input = "AcerolaAcai".to_string();
+    app.state = AppState::Connecting;
+
+    complete_connection_with_backend(&backend, &mut app)
+        .expect("connect helper maps backend failure into app state");
+
+    assert!(matches!(app.state, AppState::ConnectionResult));
+    assert!(!app.connection_success);
+    assert_eq!(app.connection_error.as_deref(), Some("connect failed"));
     assert_eq!(
         backend.state.borrow().connect_calls,
         vec!["CatCat".to_string()]

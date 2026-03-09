@@ -11,6 +11,7 @@ use crate::{
     backend::{NetworkBackend, default_backend},
     network::ConnectionRequest,
     ui::ui,
+    wifi::WifiNetwork,
 };
 
 pub struct CleanupGuard<F: FnOnce()> {
@@ -47,15 +48,24 @@ pub fn begin_disconnect_for_selected_network(app: &mut App) {
     }
 }
 
-pub async fn refresh_networks_with_backend(
-    backend: &dyn NetworkBackend,
-    app: &mut App,
-) -> Result<(), Box<dyn Error>> {
+const CONNECTION_COMPLETION_REQUIRES_NETWORK: &str =
+    "connection completion requires a selected network";
+const DISCONNECTION_COMPLETION_REQUIRES_NETWORK: &str =
+    "disconnection completion requires a selected network";
+
+fn selected_network_for_operation<'a>(
+    app: &'a App,
+    message: &'static str,
+) -> &'a WifiNetwork {
+    app.selected_network.as_ref().expect(message)
+}
+
+async fn refresh_networks(backend: &dyn NetworkBackend, app: &mut App) {
     let networks = match backend.scan_networks().await {
         Ok(networks) => networks,
         Err(error) => {
             app.handle_scan_error(error);
-            return Ok(());
+            return;
         }
     };
     let previous_count = app.networks.len();
@@ -84,15 +94,21 @@ pub async fn refresh_networks_with_backend(
     } else {
         app.status_message = "Scanning for WiFi networks...".to_string();
     }
-
-    Ok(())
 }
 
-pub fn complete_connection_with_backend(
+pub async fn refresh_networks_with_backend(
     backend: &dyn NetworkBackend,
     app: &mut App,
 ) -> Result<(), Box<dyn Error>> {
-    let network = app.selected_network.as_ref().unwrap();
+    refresh_networks(backend, app).await;
+    Ok(())
+}
+
+fn complete_connection(backend: &dyn NetworkBackend, app: &mut App) {
+    let network = selected_network_for_operation(
+        app,
+        CONNECTION_COMPLETION_REQUIRES_NETWORK,
+    );
     let request = if network.security.is_secured() {
         ConnectionRequest::Secured {
             network,
@@ -106,17 +122,33 @@ pub fn complete_connection_with_backend(
         Ok(_) => app.finish_operation(true, None),
         Err(error) => app.finish_operation(false, Some(error.to_string())),
     }
+}
+
+pub fn complete_connection_with_backend(
+    backend: &dyn NetworkBackend,
+    app: &mut App,
+) -> Result<(), Box<dyn Error>> {
+    complete_connection(backend, app);
     Ok(())
+}
+
+fn complete_disconnection(backend: &dyn NetworkBackend, app: &mut App) {
+    let network = selected_network_for_operation(
+        app,
+        DISCONNECTION_COMPLETION_REQUIRES_NETWORK,
+    );
+
+    match backend.disconnect(network) {
+        Ok(_) => app.finish_operation(true, None),
+        Err(error) => app.finish_operation(false, Some(error.to_string())),
+    }
 }
 
 pub fn complete_disconnection_with_backend(
     backend: &dyn NetworkBackend,
     app: &mut App,
 ) -> Result<(), Box<dyn Error>> {
-    match backend.disconnect(app.selected_network.as_ref().unwrap()) {
-        Ok(_) => app.finish_operation(true, None),
-        Err(error) => app.finish_operation(false, Some(error.to_string())),
-    }
+    complete_disconnection(backend, app);
     Ok(())
 }
 
@@ -151,7 +183,8 @@ async fn handle_scanning_state(
         return Ok(());
     }
 
-    refresh_networks_with_backend(backend, app).await
+    refresh_networks(backend, app).await;
+    Ok(())
 }
 
 async fn handle_connection_state(
@@ -167,7 +200,8 @@ async fn handle_connection_state(
         return Ok(());
     }
 
-    complete_connection_with_backend(backend, app)
+    complete_connection(backend, app);
+    Ok(())
 }
 
 async fn handle_disconnection_state(
@@ -183,7 +217,8 @@ async fn handle_disconnection_state(
         return Ok(());
     }
 
-    complete_disconnection_with_backend(backend, app)
+    complete_disconnection(backend, app);
+    Ok(())
 }
 
 fn handle_keypress(app: &mut App, key: KeyCode) {
@@ -289,13 +324,53 @@ pub async fn run_app<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, error::Error, rc::Rc};
 
-    use super::{CleanupGuard, begin_disconnect_for_selected_network};
+    use super::{
+        CleanupGuard,
+        begin_disconnect_for_selected_network,
+        complete_connection,
+        complete_disconnection,
+    };
     use crate::{
         app_state::{App, AppState},
+        backend::{BackendFuture, NetworkBackend},
+        network::ConnectionRequest,
         wifi::{WifiNetwork, WifiSecurity},
     };
+
+    struct NoopBackend;
+
+    impl NetworkBackend for NoopBackend {
+        fn connected_ssid(&self) -> Result<Option<String>, Box<dyn Error>> {
+            Ok(None)
+        }
+
+        fn adapter_name(&self) -> Result<Option<String>, Box<dyn Error>> {
+            Ok(None)
+        }
+
+        fn scan_networks(
+            &self,
+        ) -> BackendFuture<'_, Result<Vec<WifiNetwork>, Box<dyn Error>>>
+        {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+
+        fn connect(
+            &self,
+            _request: ConnectionRequest<'_>,
+        ) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+
+        fn disconnect(
+            &self,
+            _network: &WifiNetwork,
+        ) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+    }
 
     fn network(ssid: &str, connected: bool) -> WifiNetwork {
         WifiNetwork {
@@ -355,5 +430,27 @@ mod tests {
         assert!(!app.is_disconnect_operation);
         assert!(app.connection_start_time.is_none());
         assert!(app.selected_network.is_none());
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "connection completion requires a selected network"
+    )]
+    fn connection_completion_requires_selected_network() {
+        let backend = NoopBackend;
+        let mut app = App::new();
+
+        complete_connection(&backend, &mut app);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "disconnection completion requires a selected network"
+    )]
+    fn disconnection_completion_requires_selected_network() {
+        let backend = NoopBackend;
+        let mut app = App::new();
+
+        complete_disconnection(&backend, &mut app);
     }
 }
