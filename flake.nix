@@ -1,10 +1,6 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    pre-commit-hooks = {
-      url = "github:cachix/pre-commit-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -17,7 +13,6 @@
 
   outputs =
     {
-      pre-commit-hooks,
       rust-overlay,
       treefmt-nix,
       ...
@@ -102,24 +97,6 @@
             taplo.enable = true;
           };
         }).config.build.wrapper
-      );
-
-      checks = forEachSupportedSystem (
-        { system, ... }:
-        {
-          pre-commit-check = pre-commit-hooks.lib.${system}.run {
-            src = ./.;
-
-            hooks = {
-              deadnix.enable = true;
-              nixfmt-rfc-style.enable = true;
-              treefmt = {
-                enable = true;
-                package = inputs.self.formatter.${system};
-              };
-            };
-          };
-        }
       );
 
       devShells = forEachSupportedSystem (
