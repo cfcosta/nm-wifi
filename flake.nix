@@ -12,11 +12,7 @@
   };
 
   outputs =
-    {
-      rust-overlay,
-      treefmt-nix,
-      ...
-    }@inputs:
+    { rust-overlay, treefmt-nix, ... }@inputs:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -57,7 +53,23 @@
               "nm-wifi"
             ];
             buildInputs = [ pkgs.dbus.dev ];
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            # `remove-references-to` (used in postInstall) strips the rust
+            # toolchain path that rustc bakes into binary debug info via
+            # `rust-src`. Without it the runtime closure drags in the entire
+            # nightly toolchain (rustc/cargo/rust-src/rust-docs/…), ~2 GiB,
+            # into anything depending on this package.
+            nativeBuildInputs = [
+              pkgs.pkg-config
+              pkgs.removeReferencesTo
+            ];
+            postInstall = ''
+              for bin in "$out"/bin/*; do
+                remove-references-to -t ${rust} "$bin"
+              done
+            '';
+            # Guard: fail the build if a rust toolchain reference survives, so
+            # this closure leak can't silently return.
+            disallowedReferences = [ rust ];
             meta.mainProgram = "nm-wifi";
           };
         }
