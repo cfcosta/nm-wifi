@@ -87,7 +87,7 @@ cargo build --release
 
 If building from source without Nix, you'll need:
 
-- Rust nightly toolchain
+- Rust 1.100.0 (stable), and a nightly for `cargo fmt`
 - pkg-config
 - libdbus development headers (e.g., `libdbus-1-dev` on Debian/Ubuntu)
 
@@ -159,11 +159,13 @@ This command renders the TUI into SVG files under `docs/screenshots/`.
 
 ### Rust Toolchain
 
-The project uses Rust nightly. The toolchain is specified in `rust-toolchain.toml` and includes:
+The project builds on stable Rust, pinned in `rust-toolchain.toml`, which includes:
 
 - clippy
 - rust-analyzer
 - rustfmt
+
+Formatting uses nightly-only import options, so the Nix dev shell takes rustfmt from nightly 2026-08-04; without Nix, format with `cargo +nightly-2026-08-04 fmt`.
 
 ### Project Structure
 

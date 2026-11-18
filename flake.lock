@@ -19,27 +19,27 @@
     "root": {
       "inputs": {
         "nixpkgs": "nixpkgs",
-        "rust-overlay": "rust-overlay",
+        "rust-dev-tools": "rust-dev-tools",
         "treefmt-nix": "treefmt-nix"
       }
     },
-    "rust-overlay": {
+    "rust-dev-tools": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1772939270,
-        "narHash": "sha256-HbxD5DJAKxzo0G8on5wdY+OZNiUWt3FTvGmXmVEmg7g=",
-        "owner": "oxalica",
-        "repo": "rust-overlay",
-        "rev": "bb93f191a07c0165992ed6d0b4197ee5c7e6e641",
+        "lastModified": 1795039355,
+        "narHash": "sha256-yo9ow8mQLDdJyNTiISe3hmq81oqI/VGXcdc/XUiXz/o=",
+        "owner": "cfcosta",
+        "repo": "rust-dev-tools.nix",
+        "rev": "6f02b11812ea5b28f3fd27a66f515b6ba6009afc",
         "type": "github"
       },
       "original": {
-        "owner": "oxalica",
-        "repo": "rust-overlay",
+        "owner": "cfcosta",
+        "repo": "rust-dev-tools.nix",
         "type": "github"
       }
     },
