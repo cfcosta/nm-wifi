@@ -67,6 +67,10 @@
             name = "nm-wifi";
             src = ./.;
             buildInputs = [ pkgs.dbus.dev ];
+            # Cargo's unit graph, so each registry crate comes ready-made
+            # from a derivation of its own: `nix run
+            # github:cfcosta/rust-dev-tools.nix#plan` after dependency changes.
+            unitPlan = ./rust-units.json;
             # rust-dev-tools remaps the toolchain's paths in panic locations
             # and debug info; fail the build if a reference survives anyway,
             # since it would pull the ~2 GiB toolchain into the closure.
