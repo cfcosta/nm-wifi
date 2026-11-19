@@ -1,7 +1,7 @@
 {
   "plans": {
     "07d91fc11616b47d764c42803319abed80590e5fa307b4efe115f283b170cf82": {
-      "inputs": "091f6395fc814b69f355e6d5bdc679c66c834e4534298ce176621e8eb26a7371",
+      "inputs": "0ae6b5a4b7fc5b3e39d252a4ebcbf0ccadb1b41c4d4ba00a95bb77bc80dea86f",
       "nodes": [
         {
           "deps": [],
@@ -19,7 +19,7 @@
           "host": true,
           "name": "autocfg",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.5.0"
+          "version": "1.5.1"
         },
         {
           "deps": [],
@@ -29,11 +29,11 @@
           "host": false,
           "name": "bitflags",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "2.11.0"
+          "version": "2.13.2"
         },
         {
           "deps": [
-            55
+            56
           ],
           "features": [
             "alloc"
@@ -49,16 +49,16 @@
           "host": false,
           "name": "cfg-if",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.4"
+          "version": "1.0.5"
         },
         {
           "deps": [
             3,
             4,
-            26,
-            55,
+            27,
             56,
-            62
+            57,
+            63
           ],
           "features": [
             "std"
@@ -66,11 +66,11 @@
           "host": false,
           "name": "compact_str",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.9.0"
+          "version": "0.9.1"
         },
         {
           "deps": [
-            75
+            77
           ],
           "features": [],
           "host": true,
@@ -79,15 +79,23 @@
           "version": "0.10.0"
         },
         {
+          "deps": [],
+          "features": [],
+          "host": false,
+          "name": "critical-section",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "version": "1.2.0"
+        },
+        {
           "deps": [
             2,
-            13,
-            15,
-            36,
-            42,
-            54,
-            58,
-            59
+            14,
+            16,
+            37,
+            43,
+            55,
+            59,
+            60
           ],
           "features": [
             "bracketed-paste",
@@ -103,8 +111,8 @@
         },
         {
           "deps": [
-            9,
-            10
+            10,
+            11
           ],
           "features": [
             "default",
@@ -113,15 +121,15 @@
           "host": true,
           "name": "darling",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.23.0"
+          "version": "0.24.1"
         },
         {
           "deps": [
-            22,
-            47,
+            23,
             48,
-            63,
-            66
+            49,
+            64,
+            68
           ],
           "features": [
             "strsim",
@@ -130,47 +138,44 @@
           "host": true,
           "name": "darling_core",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.23.0"
+          "version": "0.24.1"
         },
         {
           "deps": [
-            9,
-            48,
-            66
+            10,
+            49,
+            68
           ],
           "features": [],
           "host": true,
           "name": "darling_macro",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.23.0"
+          "version": "0.24.1"
         },
         {
           "deps": [
-            28,
-            29
+            29,
+            30
           ],
           "features": [],
           "host": false,
           "name": "dbus",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.9.10"
+          "version": "0.9.12"
         },
         {
-          "deps": [
-            46
-          ],
+          "deps": [],
           "features": [
-            "default",
-            "powerfmt"
+            "default"
           ],
           "host": false,
           "name": "deranged",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.5.8"
+          "version": "0.5.9"
         },
         {
           "deps": [
-            14
+            15
           ],
           "features": [
             "default",
@@ -185,9 +190,9 @@
         {
           "deps": [
             6,
-            47,
             48,
-            66
+            49,
+            67
           ],
           "features": [
             "default",
@@ -200,7 +205,7 @@
         },
         {
           "deps": [
-            32
+            33
           ],
           "features": [
             "default"
@@ -219,7 +224,7 @@
           "host": false,
           "name": "either",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.15.0"
+          "version": "1.19.0"
         },
         {
           "deps": [],
@@ -227,11 +232,11 @@
           "host": false,
           "name": "equivalent",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.2"
+          "version": "1.0.3"
         },
         {
           "deps": [
-            28
+            29
           ],
           "features": [
             "default",
@@ -240,7 +245,7 @@
           "host": false,
           "name": "errno",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.3.14"
+          "version": "0.3.15"
         },
         {
           "deps": [],
@@ -253,8 +258,8 @@
         {
           "deps": [
             0,
-            17,
-            19
+            18,
+            20
           ],
           "features": [
             "allocator-api2",
@@ -267,7 +272,7 @@
           "host": false,
           "name": "hashbrown",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.16.1"
+          "version": "0.17.1"
         },
         {
           "deps": [],
@@ -291,25 +296,25 @@
           "host": true,
           "name": "indoc",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "2.0.7"
+          "version": "2.0.8"
         },
         {
           "deps": [
-            8,
-            23,
-            47,
+            9,
+            24,
             48,
-            66
+            49,
+            68
           ],
           "features": [],
           "host": true,
           "name": "instability",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.3.11"
+          "version": "0.3.14"
         },
         {
           "deps": [
-            16
+            17
           ],
           "features": [
             "use_alloc",
@@ -326,12 +331,12 @@
           "host": false,
           "name": "itoa",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.17"
+          "version": "1.0.19"
         },
         {
           "deps": [
-            20,
-            67
+            21,
+            69
           ],
           "features": [
             "std"
@@ -339,7 +344,7 @@
           "host": false,
           "name": "kasuari",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.4.11"
+          "version": "0.4.13"
         },
         {
           "deps": [],
@@ -350,11 +355,11 @@
           "host": false,
           "name": "libc",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.2.183"
+          "version": "0.2.191"
         },
         {
           "deps": [
-            45
+            46
           ],
           "features": [
             "default",
@@ -373,7 +378,7 @@
           "host": false,
           "name": "line-clipping",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.3.5"
+          "version": "0.3.8"
         },
         {
           "deps": [],
@@ -396,11 +401,11 @@
           "host": true,
           "name": "litrs",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.0"
+          "version": "1.0.1"
         },
         {
           "deps": [
-            57
+            58
           ],
           "features": [
             "atomic_usize",
@@ -417,11 +422,11 @@
           "host": false,
           "name": "log",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.4.29"
+          "version": "0.4.35"
         },
         {
           "deps": [
-            20
+            21
           ],
           "features": [
             "default",
@@ -430,12 +435,12 @@
           "host": false,
           "name": "lru",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.16.3"
+          "version": "0.18.5"
         },
         {
           "deps": [
-            28,
-            34
+            29,
+            35
           ],
           "features": [
             "default",
@@ -447,14 +452,14 @@
           "host": false,
           "name": "mio",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.1.1"
+          "version": "1.2.5"
         },
         {
           "deps": [
-            11,
-            39,
+            12,
             40,
-            67
+            41,
+            69
           ],
           "features": [],
           "host": false,
@@ -468,13 +473,13 @@
           "host": false,
           "name": "num-conv",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.2.0"
+          "version": "0.2.2"
         },
         {
           "deps": [
-            47,
             48,
-            66
+            49,
+            67
           ],
           "features": [],
           "host": true,
@@ -501,12 +506,12 @@
           "host": false,
           "name": "num_threads",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.1.7"
+          "version": "0.1.8"
         },
         {
           "deps": [
-            33,
-            43
+            34,
+            44
           ],
           "features": [
             "default"
@@ -519,8 +524,8 @@
         {
           "deps": [
             4,
-            28,
-            61
+            29,
+            62
           ],
           "features": [],
           "host": false,
@@ -542,7 +547,7 @@
           "host": true,
           "name": "pkg-config",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.3.32"
+          "version": "0.3.34"
         },
         {
           "deps": [],
@@ -550,11 +555,11 @@
           "host": false,
           "name": "powerfmt",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.2.0"
+          "version": "0.2.1"
         },
         {
           "deps": [
-            73
+            75
           ],
           "features": [
             "default",
@@ -563,11 +568,11 @@
           "host": true,
           "name": "proc-macro2",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.106"
+          "version": "1.0.107"
         },
         {
           "deps": [
-            47
+            48
           ],
           "features": [
             "default",
@@ -576,15 +581,15 @@
           "host": true,
           "name": "quote",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.45"
+          "version": "1.0.47"
         },
         {
           "deps": [
-            24,
-            50,
+            25,
             51,
             52,
-            53
+            53,
+            54
           ],
           "features": [
             "all-widgets",
@@ -599,22 +604,22 @@
           "host": false,
           "name": "ratatui",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.30.0"
+          "version": "0.30.2"
         },
         {
           "deps": [
             2,
             5,
-            20,
-            23,
-            25,
-            27,
-            35,
-            64,
-            67,
-            74,
+            7,
+            21,
+            26,
+            28,
+            36,
+            65,
+            69,
             76,
-            77
+            78,
+            79
           ],
           "features": [
             "default",
@@ -625,14 +630,14 @@
           "host": false,
           "name": "ratatui-core",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.1.0"
+          "version": "0.1.2"
         },
         {
           "deps": [
             4,
-            7,
-            24,
-            50
+            8,
+            25,
+            51
           ],
           "features": [
             "crossterm_0_29",
@@ -642,48 +647,46 @@
           "host": false,
           "name": "ratatui-crossterm",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.1.0"
+          "version": "0.1.2"
         },
         {
           "deps": [
-            50,
-            53
+            51,
+            54
           ],
           "features": [],
           "host": false,
           "name": "ratatui-macros",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.7.0"
+          "version": "0.7.2"
         },
         {
           "deps": [
             2,
-            20,
-            23,
+            21,
             24,
             25,
-            30,
-            50,
-            64,
-            69,
-            74,
-            77
+            26,
+            31,
+            51,
+            65,
+            71,
+            76,
+            79
           ],
           "features": [
-            "all-widgets",
             "calendar",
-            "default",
             "std"
           ],
           "host": false,
           "name": "ratatui-widgets",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.3.0"
+          "version": "0.3.2"
         },
         {
           "deps": [
             2,
-            31
+            32
           ],
           "features": [
             "alloc",
@@ -694,7 +697,7 @@
           "host": false,
           "name": "rustix",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.1.4"
+          "version": "1.1.6"
         },
         {
           "deps": [],
@@ -702,7 +705,7 @@
           "host": true,
           "name": "rustversion",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.22"
+          "version": "1.0.23"
         },
         {
           "deps": [],
@@ -722,8 +725,8 @@
         },
         {
           "deps": [
-            28,
-            60
+            29,
+            61
           ],
           "features": [
             "channel",
@@ -737,9 +740,9 @@
         },
         {
           "deps": [
-            28,
-            36,
-            58
+            29,
+            37,
+            59
           ],
           "features": [
             "mio-1_0",
@@ -752,8 +755,8 @@
         },
         {
           "deps": [
-            18,
-            28
+            19,
+            29
           ],
           "features": [],
           "host": false,
@@ -767,7 +770,7 @@
           "host": false,
           "name": "smallvec",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.15.1"
+          "version": "1.16.6"
         },
         {
           "deps": [],
@@ -787,7 +790,7 @@
         },
         {
           "deps": [
-            65
+            66
           ],
           "features": [
             "derive",
@@ -797,26 +800,45 @@
           "host": false,
           "name": "strum",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.27.2"
+          "version": "0.28.0"
         },
         {
           "deps": [
-            21,
-            47,
+            22,
             48,
-            66
+            49,
+            67
           ],
           "features": [],
           "host": true,
           "name": "strum_macros",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.27.2"
+          "version": "0.28.0"
         },
         {
           "deps": [
-            47,
             48,
-            73
+            49,
+            75
+          ],
+          "features": [
+            "clone-impls",
+            "default",
+            "derive",
+            "parsing",
+            "printing",
+            "proc-macro"
+          ],
+          "host": true,
+          "name": "syn",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "version": "2.0.119"
+        },
+        {
+          "deps": [
+            48,
+            49,
+            75
           ],
           "features": [
             "clone-impls",
@@ -831,11 +853,11 @@
           "host": true,
           "name": "syn",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "2.0.117"
+          "version": "3.0.10"
         },
         {
           "deps": [
-            68
+            70
           ],
           "features": [
             "default",
@@ -844,28 +866,28 @@
           "host": false,
           "name": "thiserror",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "2.0.18"
+          "version": "2.0.21"
         },
         {
           "deps": [
-            47,
             48,
-            66
+            49,
+            68
           ],
           "features": [],
           "host": true,
           "name": "thiserror-impl",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "2.0.18"
+          "version": "2.0.21"
         },
         {
           "deps": [
-            12,
-            28,
-            38,
-            41,
-            46,
-            70
+            13,
+            29,
+            39,
+            42,
+            47,
+            72
           ],
           "features": [
             "alloc",
@@ -875,7 +897,7 @@
           "host": false,
           "name": "time",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.3.47"
+          "version": "0.3.55"
         },
         {
           "deps": [],
@@ -883,12 +905,12 @@
           "host": false,
           "name": "time-core",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.1.8"
+          "version": "0.1.9"
         },
         {
           "deps": [
-            44,
-            72
+            45,
+            74
           ],
           "features": [
             "default",
@@ -901,19 +923,19 @@
           "host": false,
           "name": "tokio",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.50.0"
+          "version": "1.54.1"
         },
         {
           "deps": [
-            47,
             48,
-            66
+            49,
+            68
           ],
           "features": [],
           "host": true,
           "name": "tokio-macros",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "2.6.1"
+          "version": "2.7.2"
         },
         {
           "deps": [],
@@ -921,7 +943,7 @@
           "host": true,
           "name": "unicode-ident",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.0.24"
+          "version": "1.0.27"
         },
         {
           "deps": [],
@@ -929,7 +951,7 @@
           "host": false,
           "name": "unicode-segmentation",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.12.0"
+          "version": "1.13.3"
         },
         {
           "deps": [],
@@ -937,13 +959,13 @@
           "host": true,
           "name": "unicode-segmentation",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "1.12.0"
+          "version": "1.13.3"
         },
         {
           "deps": [
-            25,
-            74,
-            77
+            26,
+            76,
+            79
           ],
           "features": [
             "std"
@@ -962,7 +984,7 @@
           "host": false,
           "name": "unicode-width",
           "source": "registry+https://github.com/rust-lang/crates.io-index",
-          "version": "0.2.2"
+          "version": "0.2.3"
         }
       ]
     }
